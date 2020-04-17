@@ -5,24 +5,23 @@
 ;; Author: Didier A. <didibus@users.noreply.github.com>
 ;; URL: https://github.com/didibus/anakondo
 ;; Version: 0.1
-;; Package-Requires: ((emacs "26.3"))
+;; Package-Requires: ((emacs "26.3") (json) (projectile))
 ;; Keywords: clojure, clojurescript, cljc, clj-kondo, completion
 
 ;; This file is not part of GNU Emacs.
 
 ;;; Commentary:
 
-;; This package makes use of clj-kondo's (https://github.com/borkdude/clj-kondo)
-;; analysis data to provide code editing facilities related to Clojure,
-;; ClojureScript and Cljc source.
+;; This package makes use of clj-kondo's analysis data to provide code editing
+;; facilities related to Clojure, ClojureScript and cljc source.
 
 ;; Currently, it gives you contextual auto-complete using completion-at-point,
 ;; which works without a REPL connected, since it relies on clj-kondo's static
 ;; source analysis. It will list out all available Vars, Ns and Aliases in a
 ;; given buffer.
 
-;; It supports the notion of projects, using projectile (https://github.com/bbatsov/projectile).
-;; So it will allow you to auto-complete required dependencies' Vars using the following logic:
+;; It supports the notion of projects, using projectile. So it will allow you
+;; to auto-complete required dependencies' Vars using the following logic:
 ;;
 ;; 1. It will try to get your classpath using Clojure's tools.deps in the context of your
 ;;    projectile root, which it will use afterwards for auto-completion.
@@ -63,19 +62,17 @@
 
 ;;;; Variables
 
-(defvar cache nil)
+(defvar anakondo--cache nil)
 
 ;;;;; Keymaps
 
-;; This technique makes it easier and less verbose to define keymaps.
-
-(defvar package-name-map
+(defvar anakondo-map
   ;; This makes it easy and much less verbose to define keys
-  (let ((map (make-sparse-keymap "package-name map"))
+  (let ((map (make-sparse-keymap "anakondo map"))
         (maps (list
                ;; Mappings go here, e.g.:
-               "RET" #'package-name-RET-command
-               [remap search-forward] #'package-name-search-forward
+               ;; "RET" #'package-name-RET-command
+               ;; [remap search-forward] #'package-name-search-forward
                )))
     (cl-loop for (key fn) on maps by #'cddr
              do (progn
@@ -86,25 +83,25 @@
 
 ;;;; Functions
 
-(defun get-projectile-cache (root)
-  (gethash root cache))
+(defun anakondo--get-projectile-cache (root)
+  (gethash root anakondo--cache))
 
-(defun set-projectile-cache (root root-cache)
-  (puthash root root-cache cache))
+(defun anakondo--set-projectile-cache (root root-cache)
+  (puthash root root-cache anakondo--cache))
 
-(defun get-projectile-var-def-cache ()
-  (with-projectile-root
-   (gethash :var-def-cache (get-projectile-cache root))))
+(defun anakondo--get-projectile-var-def-cache ()
+  (anakondo--with-projectile-root
+   (gethash :var-def-cache (anakondo--get-projectile-cache root))))
 
-(defun get-projectile-ns-def-cache ()
-  (with-projectile-root
-   (gethash :ns-def-cache (get-projectile-cache root))))
+(defun anakondo--get-projectile-ns-def-cache ()
+  (anakondo--with-projectile-root
+   (gethash :ns-def-cache (anakondo--get-projectile-cache root))))
 
-(defun get-projectile-ns-usage-cache ()
-  (with-projectile-root
-   (gethash :ns-usage-cache (get-projectile-cache root))))
+(defun anakondo--get-projectile-ns-usage-cache ()
+  (anakondo--with-projectile-root
+   (gethash :ns-usage-cache (anakondo--get-projectile-cache root))))
 
-(defun completion-symbol-bounds ()
+(defun anakondo--completion-symbol-bounds ()
   (let ((pt (point))
         (syntax (syntax-ppss)))
     ;; Don't auto-complete inside strings or comments
@@ -122,7 +119,7 @@
             (skip-chars-forward "a-zA-Z0-9*+!_'?<>=/.:\-")
             (cons pt (point))))))))
 
-(defun get-buffer-lang ()
+(defun anakondo--get-buffer-lang ()
   "Return the current buffer detected Clojure language to pass
 to clj-kondo --lang argument, nil if Clojure not detected."
   (if buffer-file-name
@@ -132,13 +129,13 @@ to clj-kondo --lang argument, nil if Clojure not detected."
       ('clojurec-mode "cljc")
       ('clojurescript-mode "cljs"))))
 
-(defmacro with-projectile-root (&rest body)
+(defmacro anakondo--with-projectile-root (&rest body)
   "Invoke body with `root` bound to the projectile root."
   `(projectile-with-default-dir (projectile-ensure-project (projectile-project-root))
      (let* ((root default-directory))
        ,@body)))
 
-(defun clj-kondo-analyse-sync (path default-lang)
+(defun anakondo--clj-kondo-analyse-sync (path default-lang)
   "Returns clj-kondo's analysis data as a hash-map of lists and keywords."
   (let* ((buffer "*clj-kondo*")
          (analysis-key :analysis)
@@ -161,25 +158,25 @@ to clj-kondo --lang argument, nil if Clojure not detected."
       (when (get-buffer buffer)
         (kill-buffer buffer)))))
 
-(defun get-projectile-path ()
+(defun anakondo--get-projectile-path ()
   "Returns the path to --lint for clj-kondo within projectile's project by trying
 to use clojure tools.deps first to get the classpath of the project, lein otherwise,
 or fallback to the project root otherwise."
   ;; TODO: finish finding path logic
   (shell-command-to-string "clojure -Spath"))
 
-(defun string->keyword (str)
+(defun anakondo--string->keyword (str)
   (when str
     (intern (concat ":" str))))
 
-(defun upsert-var-def-cache (var-def-cache-table var-defs &optional invalidation-ns)
+(defun anakondo--upsert-var-def-cache (var-def-cache-table var-defs &optional invalidation-ns)
   (when invalidation-ns
     (remhash invalidation-ns var-def-cache-table))
   (seq-reduce
    (lambda (hash-table var-def)
-     (let* ((key (string->keyword (gethash :ns var-def)))
+     (let* ((key (anakondo--string->keyword (gethash :ns var-def)))
             (curr-val (gethash key hash-table))
-            (var-def-key (string->keyword (gethash :name var-def))))
+            (var-def-key (anakondo--string->keyword (gethash :name var-def))))
        (if curr-val
            (progn
              (puthash var-def-key var-def curr-val)
@@ -191,23 +188,23 @@ or fallback to the project root otherwise."
    var-defs
    var-def-cache-table))
 
-(defun upsert-ns-def-cache (ns-def-cache-table ns-defs)
+(defun anakondo--upsert-ns-def-cache (ns-def-cache-table ns-defs)
   (seq-reduce
    (lambda (hash-table ns-def)
-     (let* ((key (string->keyword (gethash :name ns-def))))
+     (let* ((key (anakondo--string->keyword (gethash :name ns-def))))
        (puthash key ns-def hash-table)
        hash-table))
    ns-defs
    ns-def-cache-table))
 
-(defun upsert-ns-usage-cache (ns-usage-cache-table ns-usages &optional invalidation-ns)
+(defun anakondo--upsert-ns-usage-cache (ns-usage-cache-table ns-usages &optional invalidation-ns)
   (when invalidation-ns
     (remhash invalidation-ns ns-usage-cache-table))
   (seq-reduce
    (lambda (hash-table ns-usage)
-     (let* ((key (string->keyword (gethash :from ns-usage)))
+     (let* ((key (anakondo--string->keyword (gethash :from ns-usage)))
             (curr-val (gethash key hash-table))
-            (ns-usage-key (string->keyword (gethash :to ns-usage))))
+            (ns-usage-key (anakondo--string->keyword (gethash :to ns-usage))))
        (if curr-val
            (progn
              (puthash ns-usage-key ns-usage curr-val)
@@ -219,70 +216,70 @@ or fallback to the project root otherwise."
    ns-usages
    ns-usage-cache-table))
 
-(defun clj-kondo-projectile-analyse-sync (var-def-cache-table ns-def-cache-table ns-usage-cache-table)
+(defun anakondo--clj-kondo-projectile-analyse-sync (var-def-cache-table ns-def-cache-table ns-usage-cache-table)
   "Returns clj-kondo analyses data for projectile project."
-  (with-projectile-root
-   (let* ((kondo-analyses (clj-kondo-analyse-sync (get-projectile-path) (get-buffer-lang)))
+  (anakondo--with-projectile-root
+   (let* ((kondo-analyses (anakondo--clj-kondo-analyse-sync (anakondo--get-projectile-path) (anakondo--get-buffer-lang)))
           (var-defs (gethash :var-definitions kondo-analyses))
           (ns-defs (gethash :namespace-definitions kondo-analyses))
           (ns-usages (gethash :namespace-usages kondo-analyses)))
-     (upsert-var-def-cache var-def-cache-table var-defs)
-     (upsert-ns-def-cache ns-def-cache-table ns-defs)
-     (upsert-ns-usage-cache ns-usage-cache-table ns-usages)
+     (anakondo--upsert-var-def-cache var-def-cache-table var-defs)
+     (anakondo--upsert-ns-def-cache ns-def-cache-table ns-defs)
+     (anakondo--upsert-ns-usage-cache ns-usage-cache-table ns-usages)
      root)))
 
-(defun clj-kondo-buffer-analyse-sync (var-def-cache-table ns-def-cache-table ns-usage-cache-table)
+(defun anakondo--clj-kondo-buffer-analyse-sync (var-def-cache-table ns-def-cache-table ns-usage-cache-table)
   "Returns clj-kondo analyses data for current buffer."
-  (let* ((kondo-analyses (clj-kondo-analyse-sync "-" (get-buffer-lang)))
+  (let* ((kondo-analyses (anakondo--clj-kondo-analyse-sync "-" (anakondo--get-buffer-lang)))
          (var-defs (gethash :var-definitions kondo-analyses))
          (ns-defs (gethash :namespace-definitions kondo-analyses))
          (ns-usages (gethash :namespace-usages kondo-analyses))
          (curr-ns-def (car ns-defs))
          ;; Default to user namespace when there is no namespace defined in the buffer
          (curr-ns (if curr-ns-def
-                      (string->keyword (gethash :name curr-ns-def))
+                      (anakondo--string->keyword (gethash :name curr-ns-def))
                     :user)))
-    (upsert-var-def-cache var-def-cache-table var-defs curr-ns)
-    (upsert-ns-def-cache ns-def-cache-table ns-defs)
-    (upsert-ns-usage-cache ns-usage-cache-table ns-usages curr-ns)
+    (anakondo--upsert-var-def-cache var-def-cache-table var-defs curr-ns)
+    (anakondo--upsert-ns-def-cache ns-def-cache-table ns-defs)
+    (anakondo--upsert-ns-usage-cache ns-usage-cache-table ns-usages curr-ns)
     curr-ns))
 
-(defun safe-hash-table-values (hash-table)
+(defun anakondo--safe-hash-table-values (hash-table)
   (when hash-table
     (hash-table-values hash-table)))
 
-(defun clj-kondo-completion-at-point ()
-  (let* ((var-def-cache (get-projectile-var-def-cache))
-         (ns-def-cache (get-projectile-ns-def-cache))
-         (ns-usage-cache (get-projectile-ns-usage-cache))
-         (curr-ns (clj-kondo-buffer-analyse-sync var-def-cache ns-def-cache ns-usage-cache))
+(defun anakondo--completion-at-point ()
+  (let* ((var-def-cache (anakondo--get-projectile-var-def-cache))
+         (ns-def-cache (anakondo--get-projectile-ns-def-cache))
+         (ns-usage-cache (anakondo--get-projectile-ns-usage-cache))
+         (curr-ns (anakondo--clj-kondo-buffer-analyse-sync var-def-cache ns-def-cache ns-usage-cache))
          (candidates (append
                       (mapcar
                        (lambda (var-def)
                          (gethash :name var-def))
                        (append
-                        (safe-hash-table-values (gethash curr-ns var-def-cache))
-                        (safe-hash-table-values (gethash :clojure.core var-def-cache))))
+                        (anakondo--safe-hash-table-values (gethash curr-ns var-def-cache))
+                        (anakondo--safe-hash-table-values (gethash :clojure.core var-def-cache))))
                       (mapcar
                        (lambda (ns-def)
                          (gethash :name ns-def))
-                       (safe-hash-table-values ns-def-cache))
+                       (anakondo--safe-hash-table-values ns-def-cache))
                       (seq-mapcat
                        (lambda (ns-usage)
                          (let* ((ns-name (gethash :to ns-usage))
                                 (alias (gethash :alias ns-usage))
                                 (ns-qualifier (or alias ns-name))
-                                (ns-key (string->keyword ns-name))
+                                (ns-key (anakondo--string->keyword ns-name))
                                 (ns-var-names (mapcar
                                                (lambda (var-def)
                                                  (gethash :name var-def))
-                                               (safe-hash-table-values (gethash ns-key var-def-cache)))))
+                                               (anakondo--safe-hash-table-values (gethash ns-key var-def-cache)))))
                            (mapcar
                             (lambda (var-name)
                               (concat ns-qualifier "/" var-name))
                             ns-var-names)))
-                       (safe-hash-table-values (gethash curr-ns ns-usage-cache)))))
-         (bounds (completion-symbol-bounds))
+                       (anakondo--safe-hash-table-values (gethash curr-ns ns-usage-cache)))))
+         (bounds (anakondo--completion-symbol-bounds))
          (start (car bounds))
          (end (cdr bounds)))
     (when bounds
@@ -291,10 +288,10 @@ or fallback to the project root otherwise."
        end
        candidates))))
 
-(defun init-projectile-cache (root)
-  (when (not cache)
-    (setq cache (make-hash-table :test 'equal)))
-  (let* ((root-cache (get-projectile-cache root)))
+(defun anakondo--init-projectile-cache (root)
+  (when (not anakondo--cache)
+    (setq anakondo--cache (make-hash-table :test 'equal)))
+  (let* ((root-cache (anakondo--get-projectile-cache root)))
     (if (not root-cache)
         (let* ((root-cache (make-hash-table))
                (var-def-cache (make-hash-table))
@@ -303,27 +300,17 @@ or fallback to the project root otherwise."
           (puthash :var-def-cache var-def-cache root-cache)
           (puthash :ns-def-cache ns-def-cache root-cache)
           (puthash :ns-usage-cache ns-usage-cache root-cache)
-          (set-projectile-cache root root-cache)
-          (clj-kondo-projectile-analyse-sync var-def-cache ns-def-cache ns-usage-cache))
-      (let* ((var-def-cache (get-projectile-var-def-cache))
-             (ns-def-cache (get-projectile-ns-def-cache))
-             (ns-usage-cache (get-projectile-ns-usage-cache)))
-        (clj-kondo-buffer-analyse-sync var-def-cache ns-def-cache ns-usage-cache)))))
+          (anakondo--set-projectile-cache root root-cache)
+          (anakondo--clj-kondo-projectile-analyse-sync var-def-cache ns-def-cache ns-usage-cache))
+      (let* ((var-def-cache (anakondo--get-projectile-var-def-cache))
+             (ns-def-cache (anakondo--get-projectile-ns-def-cache))
+             (ns-usage-cache (anakondo--get-projectile-ns-usage-cache)))
+        (anakondo--clj-kondo-buffer-analyse-sync var-def-cache ns-def-cache ns-usage-cache)))))
 
-(defun delete-projectile-cache (root)
-  (when cache
-    (when (get-projectile-cache root)
-      (remhash root cache))))
-
-(defun clj-kondo-completion--mode-enter ()
-  (add-hook 'completion-at-point-functions 'clj-kondo-completion-at-point nil t)
-  (with-projectile-root
-   (init-projectile-cache root)))
-
-(defun clj-kondo-completion--mode-exit ()
-  (remove-hook 'completion-at-point-functions 'clj-kondo-completion-at-point t)
-  (with-projectile-root
-   (delete-projectile-cache root)))
+(defun anakondo--delete-projectile-cache (root)
+  (when anakondo--cache
+    (when (anakondo--get-projectile-cache root)
+      (remhash root anakondo--cache))))
 
 ;;;;; Commands
 
@@ -331,13 +318,23 @@ or fallback to the project root otherwise."
 (define-minor-mode anakondo-minor-mode
   "Minor mode for Clojure[Script] completion powered by clj-kondo."
   nil
-  nil
-  nil
-  (if clj-kondo-completion-mode
-      (clj-kondo-completion--mode-enter)
-    (clj-kondo-completion--mode-exit)))
+  "k"
+  anakondo-map
+  (if anakondo-minor-mode
+      (anakondo--minor-mode-enter)
+    (anakondo--minor-mode-exit)))
 
 ;;;;; Support
+
+(defun anakondo--minor-mode-enter ()
+  (add-hook 'completion-at-point-functions 'anakondo--completion-at-point nil t)
+  (anakondo--with-projectile-root
+   (anakondo--init-projectile-cache root)))
+
+(defun anakondo--minor-mode-exit ()
+  (remove-hook 'completion-at-point-functions 'anakondo--completion-at-point)
+  (anakondo--with-projectile-root
+   (anakondo--delete-projectile-cache root)))
 
 ;;;; Footer
 
