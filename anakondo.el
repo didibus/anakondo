@@ -113,7 +113,7 @@
           (unless (or (and ch (>= ch ?0) (<= ch ?9)) ;skip numbers
                       (and ch (= ch ?:)) ;skip keywords
                       (and ch (= ch ?.))) ;skip . at start as reserved by Clojure
-            (when (or (= ch ?'))
+            (when (and ch (= ch ?'))
               (forward-char))
             (setq pt (point))
             (skip-chars-forward "a-zA-Z0-9*+!_'?<>=/.:\-")
