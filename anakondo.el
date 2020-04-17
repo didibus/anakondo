@@ -218,6 +218,7 @@ or fallback to the project root otherwise."
 
 (defun anakondo--clj-kondo-projectile-analyse-sync (var-def-cache-table ns-def-cache-table ns-usage-cache-table)
   "Returns clj-kondo analyses data for projectile project."
+  (message "Analysing project for completion...")
   (anakondo--with-projectile-root
    (let* ((kondo-analyses (anakondo--clj-kondo-analyse-sync (anakondo--get-projectile-path) (anakondo--get-buffer-lang)))
           (var-defs (gethash :var-definitions kondo-analyses))
@@ -226,10 +227,12 @@ or fallback to the project root otherwise."
      (anakondo--upsert-var-def-cache var-def-cache-table var-defs)
      (anakondo--upsert-ns-def-cache ns-def-cache-table ns-defs)
      (anakondo--upsert-ns-usage-cache ns-usage-cache-table ns-usages)
+     (message "Analysing project for completion...done")
      root)))
 
 (defun anakondo--clj-kondo-buffer-analyse-sync (var-def-cache-table ns-def-cache-table ns-usage-cache-table)
   "Returns clj-kondo analyses data for current buffer."
+  (message "Analysing buffer for completion...")
   (let* ((kondo-analyses (anakondo--clj-kondo-analyse-sync "-" (anakondo--get-buffer-lang)))
          (var-defs (gethash :var-definitions kondo-analyses))
          (ns-defs (gethash :namespace-definitions kondo-analyses))
@@ -242,6 +245,7 @@ or fallback to the project root otherwise."
     (anakondo--upsert-var-def-cache var-def-cache-table var-defs curr-ns)
     (anakondo--upsert-ns-def-cache ns-def-cache-table ns-defs)
     (anakondo--upsert-ns-usage-cache ns-usage-cache-table ns-usages curr-ns)
+    (message "Analysing buffer for completion...done")
     curr-ns))
 
 (defun anakondo--safe-hash-table-values (hash-table)
