@@ -137,7 +137,7 @@ to clj-kondo --lang argument, nil if Clojure not detected."
 
 (defun anakondo--clj-kondo-analyse-sync (path default-lang)
   "Returns clj-kondo's analysis data as a hash-map of lists and keywords."
-  (let* ((buffer "*clj-kondo*")
+  (let* ((buffer "*anakondo*")
          (analysis-key :analysis)
          (kondo-command (concat "clj-kondo --lint '" path
                                 "' --config '{:output {:analysis true :format :json}}'"))
