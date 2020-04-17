@@ -151,9 +151,9 @@ to clj-kondo --lang argument, nil if Clojure not detected."
                (json-object-type 'hash-table)
                (json-array-type 'list)
                (json-key-type 'keyword)
-               (kondo-result-json (with-current-buffer buffer
-                                    (buffer-string)))
-               (kondo-result-hashmap (json-read-from-string kondo-result-json)))
+               (kondo-result-hashmap (with-current-buffer buffer
+                                       (goto-char (point-min))
+                                       (json-read))))
           (gethash analysis-key kondo-result-hashmap))
       (when (get-buffer buffer)
         (kill-buffer buffer)))))
