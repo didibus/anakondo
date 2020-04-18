@@ -252,48 +252,52 @@ or fallback to the project root otherwise."
   (when hash-table
     (hash-table-values hash-table)))
 
-(defun anakondo--completion-at-point ()
+(defun anakondo--get-completion-candidates ()
   (let* ((var-def-cache (anakondo--get-projectile-var-def-cache))
          (ns-def-cache (anakondo--get-projectile-ns-def-cache))
          (ns-usage-cache (anakondo--get-projectile-ns-usage-cache))
-         (curr-ns (anakondo--clj-kondo-buffer-analyse-sync var-def-cache ns-def-cache ns-usage-cache))
-         (candidates (append
-                      (mapcar
-                       (lambda (var-def)
-                         (gethash :name var-def))
-                       (append
-                        (anakondo--safe-hash-table-values (gethash curr-ns var-def-cache))
-                        (anakondo--safe-hash-table-values (gethash :clojure.core var-def-cache))))
-                      (mapcar
-                       (lambda (ns-def)
-                         (gethash :name ns-def))
-                       (anakondo--safe-hash-table-values ns-def-cache))
-                      (seq-mapcat
-                       (lambda (ns-usage)
-                         (let* ((ns-name (gethash :to ns-usage))
-                                (alias (gethash :alias ns-usage))
-                                (ns-qualifier (or alias ns-name))
-                                (ns-key (anakondo--string->keyword ns-name))
-                                (ns-var-names (mapcar
-                                               (lambda (var-def)
-                                                 (gethash :name var-def))
-                                               (anakondo--safe-hash-table-values (gethash ns-key var-def-cache)))))
-                           (mapcar
-                            (lambda (var-name)
-                              (concat ns-qualifier "/" var-name))
-                            ns-var-names)))
-                       (anakondo--safe-hash-table-values (gethash curr-ns ns-usage-cache)))))
-         (bounds (anakondo--completion-symbol-bounds))
+         (curr-ns (anakondo--clj-kondo-buffer-analyse-sync var-def-cache ns-def-cache ns-usage-cache)))
+    (append
+     (mapcar
+      (lambda (var-def)
+        (gethash :name var-def))
+      (append
+       (anakondo--safe-hash-table-values (gethash curr-ns var-def-cache))
+       (anakondo--safe-hash-table-values (gethash :clojure.core var-def-cache))))
+     (mapcar
+      (lambda (ns-def)
+        (gethash :name ns-def))
+      (anakondo--safe-hash-table-values ns-def-cache))
+     (seq-mapcat
+      (lambda (ns-usage)
+        (let* ((ns-name (gethash :to ns-usage))
+               (alias (gethash :alias ns-usage))
+               (ns-qualifier (or alias ns-name))
+               (ns-key (anakondo--string->keyword ns-name))
+               (ns-var-names (mapcar
+                              (lambda (var-def)
+                                (gethash :name var-def))
+                              (anakondo--safe-hash-table-values (gethash ns-key var-def-cache)))))
+          (mapcar
+           (lambda (var-name)
+             (concat ns-qualifier "/" var-name))
+           ns-var-names)))
+      (anakondo--safe-hash-table-values (gethash curr-ns ns-usage-cache))))))
+
+(defun anakondo-completion-at-point ()
+  (let* ((bounds (anakondo--completion-symbol-bounds))
          (start (car bounds))
          (end (cdr bounds)))
     (when bounds
       (list
        start
        end
-       candidates))))
+       (completion-table-with-cache
+        (lambda (_)
+          (anakondo--get-completion-candidates)))))))
 
 (defun anakondo--init-projectile-cache (root)
-  (when (not anakondo--cache)
+  (unless anakondo--cache
     (setq anakondo--cache (make-hash-table :test 'equal)))
   (let* ((root-cache (anakondo--get-projectile-cache root)))
     (if (not root-cache)
@@ -320,7 +324,13 @@ or fallback to the project root otherwise."
 
 ;;;###autoload
 (define-minor-mode anakondo-minor-mode
-  "Minor mode for Clojure[Script] completion powered by clj-kondo."
+  "Minor mode for Clojure[Script] completion powered by clj-kondo.
+
+Toggle anakondo-minor-mode on or off.
+
+With a prefix argument ARG, enable anakondo-minor-mode if ARG is
+positive, and disable it otherwise. If called from Lisp, enable
+the mode if ARG is omitted or nil, and toggle it if ARG is ‘toggle’."
   nil
   "k"
   anakondo-map
@@ -328,17 +338,36 @@ or fallback to the project root otherwise."
       (anakondo--minor-mode-enter)
     (anakondo--minor-mode-exit)))
 
+(defun anakondo-refresh-project-cache ()
+  "Refresh the anakondo project analysis cache.
+
+Run this command if you feel anakondo is out-of-sync with your project source.
+Will not pick up changes to source which have not been saved. So you might want
+to save your buffers first.
+
+Runs synchronously, and might take a few seconds for big projects."
+  (interactive)
+  (anakondo--minor-mode-guard)
+  (let* ((var-def-cache (anakondo--get-projectile-var-def-cache))
+         (ns-def-cache (anakondo--get-projectile-ns-def-cache))
+         (ns-usage-cache (anakondo--get-projectile-ns-usage-cache)))
+    (anakondo--clj-kondo-projectile-analyse-sync var-def-cache ns-def-cache ns-usage-cache)))
+
 ;;;;; Support
 
 (defun anakondo--minor-mode-enter ()
-  (add-hook 'completion-at-point-functions 'anakondo--completion-at-point nil t)
+  (add-hook 'completion-at-point-functions 'anakondo-completion-at-point nil t)
   (anakondo--with-projectile-root
    (anakondo--init-projectile-cache root)))
 
 (defun anakondo--minor-mode-exit ()
-  (remove-hook 'completion-at-point-functions 'anakondo--completion-at-point)
+  (remove-hook 'completion-at-point-functions 'anakondo-completion-at-point)
   (anakondo--with-projectile-root
    (anakondo--delete-projectile-cache root)))
+
+(defun anakondo--minor-mode-guard ()
+  (unless anakondo-minor-mode
+    (error "Anakondo minor mode not on in current buffer.")))
 
 ;;;; Footer
 
