@@ -15,37 +15,19 @@
 ;; This package makes use of clj-kondo's analysis data to provide code editing
 ;; facilities related to Clojure, ClojureScript and cljc source.
 
-;; Currently, it gives you contextual auto-complete using completion-at-point,
-;; which works without a REPL connected, since it relies on clj-kondo's static
-;; source analysis. It will list out all available Vars, Ns and Aliases in a
-;; given buffer.
-
-;; It supports the notion of projects, using projectile. So it will allow you
-;; to auto-complete required dependencies' Vars using the following logic:
-;;
-;; 1. It will try to get your classpath using Clojure's tools.deps in the context of your
-;;    projectile root, which it will use afterwards for auto-completion.
+;; See accompanying README file for more info: https://github.com/didibus/anakondo/blob/master/README.org
 
 ;;;; Installation
 
-;; To be determined.
+;; See accompanying README file for install instructions: https://github.com/didibus/anakondo/blob/master/README.org#Installation
 
 ;;;; Usage
 
-;; Simply activate `anakondo-minor-mode' in a Clojure, ClojureScript or Clojurec buffer.
+;; See accompanying README file for usage instructions: https://github.com/didibus/anakondo/blob/master/README.org#Usage
 
 ;;;; Credits
 
-;; This package would not have been possible without the following
-;; packages: clj-kondo[1], which does all the heavy lifting, projectile[2],
-;; which gives Emacs a common notion of projects, tools.deps[3], which lets
-;; me find the classpath effortlessly, and json[4] which lets me parse
-;; clj-kondo's analysis file inside Emacs.
-;;
-;;  [1] https://github.com/borkdude/clj-kondo
-;;  [2] https://github.com/bbatsov/projectile
-;;  [3] https://github.com/clojure/tools.deps.alpha
-;;  [4] https://github.com/ryancrum/json.el
+;; See accompanying README file for credits: https://github.com/didibus/anakondo/blob/master/README.org#Credits
 
 ;;; License:
 
