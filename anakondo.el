@@ -355,8 +355,7 @@ How it works:
        end
        (completion-table-with-cache
         (lambda (_)
-          (anakondo--get-completion-candidates)))
-       . (:exclusive 'no)))))
+          (anakondo--get-completion-candidates)))))))
 
 (defun anakondo--init-projectile-cache (root)
   "Initialize clj-kondo analysis cache of caches for given ROOT, if it isn't already.
