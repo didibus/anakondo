@@ -92,7 +92,7 @@ To have it on by default for all your Clojure, ClojureScript and cljc buffers, a
 If you are also using Cider, the order in which you add the hooks matters in the resulting completion behavior:
 
 1. If you add anakondo to the Clojure mode hooks first, then completion will first try to use anakondo's, and only if it can't complete the form will it then try to use Cider's completion. This means if you try to complete a keyword for example, it'll fallback to Cider's, but for completing symbols it won't, even if it finds no candidates.
-2. Otherwise, if you add Cider to the Clojure mode hooks first, then completion will first try to use Cider's, and only if Cider completion is not available, because there is no connected REPL, will it then fallback to try anakondo's completion. If Cider completion is available (because you have a REPL connected), it will never fallback to trying anakondo's completion, even if Cider doesn't find and completion candidates.
+2. Otherwise, if you add Cider to the Clojure mode hooks first, then completion will first try to use Cider's, and only if Cider completion is not available, because there is no connected REPL, will it then fallback to try anakondo's completion. If Cider completion is available (because you have a REPL connected), it will never fallback to trying anakondo's completion, even if Cider doesn't find any completion candidates.
 
 *Currently, I recommend adding anakondo after Cider*. This will make it so when no REPL is connected, you have anakondo's clj-kondo based static analysis completion. While when a REPL is running, you have Cider's completion, which currently gives you more information and includes locals and java classes. If you do it the other way around, when a REPL is running, if anakondo find completions you will only see the ones it found, which would be missing local bindings and java classes. I'll be exploring options to have the completions merged in the future, so we get the best of both worlds.
 
@@ -104,7 +104,7 @@ This also goes if you turn on/off the modes manually, except in that case, order
 + If you change your =deps.edn=, or feel the completion is looking out of sync, you can force refresh the cache of the project analysis by running: =M-x anakondo-refresh-project-cache= command.
 + If dependency completion isn't working, remember that =anakondo= only supports =tools.deps= for now, if you don't have a =deps.edn= for your project, it will pick up your global =deps.edn= instead, it won't use your lein =project.clj= or boot =build.boot= dependencies.
 + If you've disabled cider-mode, and somehow anakondo completion stopped working, this is because of a known bug in cider-mode, which removes all configured completion for the buffer, not just its own, I am trying to get this fixed in cider as well.
-+ If you've killed the REPL, and somehow anakonda completion doesn't seem to be picking it back up, this is also due to a bug in cider, where it deletes all configured completion for the buffer on repl quit. I am trying to get this fixed in cider as well.
++ If you've killed the REPL, and somehow anakondo completion doesn't seem to be starting back up, this is also due to a bug in cider, where it deletes all configured completion for the buffer on repl quit. I am trying to get this fixed in cider as well.
 
 * Changelog
 :PROPERTIES:
@@ -131,7 +131,7 @@ Internal
 + Uses projectile to find the project root
 + Uses tools.deps to find the classpath for project root
 + On completion, re-analyses the current buffer and updates cache
-+ Handles finding the symbol to complete even in complex forms like src_clojure{~sym}, src_clojure{~@sym}, src_clojure{@sym}, src_clojure{'sym}, src_clojure{`sym}, etc.
++ Handles finding the symbol to complete even in complex forms like =~sym=, =~@sym=, =@sym=, ='sym=, =`sym=, etc.
 
 * Roadmap
 
