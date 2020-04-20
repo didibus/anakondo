@@ -12,7 +12,8 @@ It supports the notion of projects, using projectile and Clojure's tools.deps. T
 
 * Screenshots
 
-[[file:screenshots/anakondo-auto-completion-no-repl-demo.gif][Example completion using anakondo]]
+#+CAPTION: Example completion using anakondo
+[[./screenshots/anakondo-auto-completion-no-repl-demo.gif]]
 
 * Contents                                                         :noexport:
 :PROPERTIES:
