@@ -184,7 +184,7 @@ derived from the file extension this option will be used."
       (when (get-buffer buffer)
         (kill-buffer buffer)))))
 
-(defun anakondo--get-projectile-path ()
+(defun anakondo--get-project-path ()
   "Return the path to `--lint' for clj-kondo in current projectile project.
 
 It uses Clojure's `tools.deps' to get the project's classpath."
@@ -263,7 +263,7 @@ It is synchronous and will block Emacs, but it will message the user of the work
 it is doing, so they are aware Emacs is not frozen, but busy analyzing their project."
   (message "Analysing project for completion...")
   (anakondo--with-projectile-root
-   (let* ((kondo-analyses (anakondo--clj-kondo-analyse-sync (anakondo--get-projectile-path) (anakondo--get-buffer-lang)))
+   (let* ((kondo-analyses (anakondo--clj-kondo-analyse-sync (anakondo--get-project-path) (anakondo--get-buffer-lang)))
           (var-defs (gethash :var-definitions kondo-analyses))
           (ns-defs (gethash :namespace-definitions kondo-analyses))
           (ns-usages (gethash :namespace-usages kondo-analyses)))
