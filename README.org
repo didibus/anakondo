@@ -111,6 +111,11 @@ This also goes if you turn on/off the modes manually, except in that case, order
 :TOC:      :depth 0
 :END:
 
+** 0.1.1
+
+Fixes
++ Fixed byte compilation issue due to macros being defined too late
+
 ** 0.1
 
 Additions
