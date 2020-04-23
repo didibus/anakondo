@@ -4,7 +4,7 @@
 
 ;; Author: Didier A. <didibus@users.noreply.github.com>
 ;; URL: https://github.com/didibus/anakondo
-;; Version: 0.1
+;; Version: 0.1.1
 ;; Package-Requires: ((emacs "26.3") (json) (projectile))
 ;; Keywords: clojure, clojurescript, cljc, clj-kondo, completion
 
