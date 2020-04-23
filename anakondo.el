@@ -74,6 +74,16 @@
     map)
   "Keymap used to specify key-bindings for anakondo minor mode.")
 
+;;;; Macros
+
+(defmacro anakondo--with-projectile-root (&rest body)
+  "Invoke BODY with `root' bound to the projectile root.
+
+Anaphoric macro, binds `root' implicitly."
+  `(projectile-with-default-dir (projectile-ensure-project (projectile-project-root))
+     (let* ((root default-directory))
+       ,@body)))
+
 ;;;; Functions
 
 (defun anakondo--get-projectile-cache (root)
@@ -143,14 +153,6 @@ Return nil if Clojure not detected."
       ('clojure-mode "clj")
       ('clojurec-mode "cljc")
       ('clojurescript-mode "cljs"))))
-
-(defmacro anakondo--with-projectile-root (&rest body)
-  "Invoke BODY with `root' bound to the projectile root.
-
-Anaphoric macro, binds `root' implicitly."
-  `(projectile-with-default-dir (projectile-ensure-project (projectile-project-root))
-     (let* ((root default-directory))
-       ,@body)))
 
 (defun anakondo--clj-kondo-analyse-sync (path default-lang)
   "Return clj-kondo's analysis data as a hash-map of lists and keywords.
