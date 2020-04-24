@@ -324,11 +324,13 @@ HASH-TABLE is nil."
   (when hash-table
     (hash-table-values hash-table)))
 
-(defun anakondo--get-clj-kondo-completion-candidates ()
+(defun anakondo--get-clj-kondo-completion-candidates (prefix)
   "Return completion candidates at point for current buffer.
 
 Return a candidate list compatible with `completion-at-point' for current
 symbol at point.
+
+PREFIX : not used for filtering, is expected to be the symbol at point looking to be completed
 
 How it works:
 1. It gets the current namespace by analyzing the current buffer with clj-kondo.
@@ -347,7 +349,15 @@ How it works:
   (let* ((var-def-cache (anakondo--get-projectile-var-def-cache))
          (ns-def-cache (anakondo--get-projectile-ns-def-cache))
          (ns-usage-cache (anakondo--get-projectile-ns-usage-cache))
+         ;; Fix clj-kondo issue: https://github.com/borkdude/clj-kondo/issues/866
+         ;; We need to send to clj-kondo the buffer with prefix that doesn't end in forward slash
+         (prefix-end-in-forward-slash? (when (and (char-before) (= (char-before) ?/))
+                                         (delete-backward-char 1)
+                                         t))
          (curr-ns (anakondo--clj-kondo-buffer-analyse-sync var-def-cache ns-def-cache ns-usage-cache)))
+    ;; Restore deleted forward-slash
+    (when prefix-end-in-forward-slash?
+      (insert-char ?/))
     (append
      (mapcar
       (lambda (var-def)
@@ -414,7 +424,7 @@ Return a `completion-at-point' list for use with
        (completion-table-with-cache
         (lambda (prefix)
           (append
-           (anakondo--get-clj-kondo-completion-candidates)
+           (anakondo--get-clj-kondo-completion-candidates prefix)
            (anakondo--get-local-completion-candidates prefix start))))))))
 
 (defun anakondo--init-projectile-cache (root)

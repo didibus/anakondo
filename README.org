@@ -116,6 +116,9 @@ This also goes if you turn on/off the modes manually, except in that case, order
 Additions
 + Add support for locals auto-completion
 
+Fixes
++ Fix bug where sym/ says No matching candidates instead of listing the available candidates that begin with sym/
+
 ** 0.1.2
 
 Internal
@@ -172,9 +175,7 @@ Planned Features
 + Add support for clj-kondo driven font-lock
 + Add support for completing keywords : pending [[https://github.com/borkdude/clj-kondo/issues/855][clj-kondo-855]]
 + Add support for completing refered vars : pending [[https://github.com/borkdude/clj-kondo/issues/856][clj-kondo-856]]
-
-Planned Fixes
-+ Fix bug where sym/ says No matching candidates instead of listing the available candidates that begin with sym/
++ Add support for completing Java methods, classes and packages (possibly using javap and jar)
 
 * Credits
 
