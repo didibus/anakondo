@@ -111,6 +111,10 @@ This also goes if you turn on/off the modes manually, except in that case, order
 :TOC:      :depth 0
 :END:
 
+** 0.2
+
+Additions
++ Add support for locals auto-completion
 
 ** 0.1.2
 
@@ -154,7 +158,6 @@ Planned Features
 + Make project analysis async, so it runs in the background and doesn't block Emacs
 + Have project analysis refresh automatically every X seconds in the background
 + Have project analysis refresh automatically on file watch of deps.edn
-+ Add support for locals auto-completion
 + Add support for lein projects
 + Add support for boot projects
 + Have fallback logic to find project root if projectile is missing

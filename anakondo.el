@@ -4,7 +4,7 @@
 
 ;; Author: Didier A. <didibus@users.noreply.github.com>
 ;; URL: https://github.com/didibus/anakondo
-;; Version: 0.1.2
+;; Version: 0.2
 ;; Package-Requires: ((emacs "26.3") (projectile "2.1.0"))
 ;; Keywords: clojure, clojurescript, cljc, clj-kondo, completion, languages, tools
 
@@ -324,7 +324,7 @@ HASH-TABLE is nil."
   (when hash-table
     (hash-table-values hash-table)))
 
-(defun anakondo--get-completion-candidates ()
+(defun anakondo--get-clj-kondo-completion-candidates ()
   "Return completion candidates at point for current buffer.
 
 Return a candidate list compatible with `completion-at-point' for current
@@ -375,6 +375,30 @@ How it works:
            ns-var-names)))
       (anakondo--safe-hash-table-values (gethash curr-ns ns-usage-cache))))))
 
+(defun anakondo--get-local-completion-candidates (prefix prefix-start)
+  "Return a local candidate list compatible with completion-at-point for current symbol at point.
+
+Does not use clj-kondo, will perform a heuristic search for locals on best effort.
+
+Heuristic:
+  Uses dabbrev to find all symbols between the top level form up to prefix-start.
+
+PREFIX : string for which to find all candidates that can complete it.
+PREFIX-START : start point of PREFIX, candidates are found up to PREFIX-START."
+  (let* ((all-expansions nil)
+         expansion
+         (syntax (syntax-ppss))
+         (top-level-form-start (car (nth 9 syntax))))
+    (when top-level-form-start
+      (save-excursion
+        (save-restriction
+          (narrow-to-region top-level-form-start prefix-start)
+          (dabbrev--reset-global-variables)
+          (while (setq expansion (dabbrev--search prefix t nil))
+            (when (anakondo--completion-symbol-bounds)
+              (setq all-expansions (cons expansion all-expansions)))))))
+    all-expansions))
+
 (defun anakondo-completion-at-point ()
   "Get anakondo's completion at point.
 
@@ -388,8 +412,10 @@ Return a `completion-at-point' list for use with
        start
        end
        (completion-table-with-cache
-        (lambda (_)
-          (anakondo--get-completion-candidates)))))))
+        (lambda (prefix)
+          (append
+           (anakondo--get-clj-kondo-completion-candidates)
+           (anakondo--get-local-completion-candidates prefix start))))))))
 
 (defun anakondo--init-projectile-cache (root)
   "Initialize analysis caches for project ROOT.
