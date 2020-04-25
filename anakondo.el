@@ -40,6 +40,7 @@
 (require 'json)
 (require 'projectile)
 (eval-when-compile (require 'subr-x))
+(require 'dabbrev)
 
 ;;;; Customization
 
@@ -56,6 +57,10 @@
 
 (defvar anakondo--cache nil
   "Cache where per-project clj-kondo analysis maps are stored.")
+
+(defvar-local anakondo--completion-candidates-cache nil
+  "Store the last start position in we completed at car,
+and the completion candidates for it at cdr for buffer.")
 
 ;;;;; Keymaps
 
@@ -109,6 +114,11 @@ Anaphoric macro, binds `root' implicitly."
   "Return cached ns-usages for current projectile project."
   (anakondo--with-projectile-root
    (gethash :ns-usage-cache (anakondo--get-projectile-cache root))))
+
+(defun anakondo--get-projectile-java-classes-cache ()
+  "Return cached java-classes for current projectile project."
+  (anakondo--with-projectile-root
+   (gethash :java-classes-cache (anakondo--get-projectile-cache root))))
 
 (defun anakondo--completion-symbol-bounds ()
   "Return bounds of symbol at point which needs completion.
@@ -275,12 +285,7 @@ INVALIDATION-NS : optional, can be a keyword of the namespace to invalidate
   "Analyze project synchronously using clj-kondo.
 
 Analyze synchronously the current project and upsert the analysis result
-into the given VAR-DEF-CACHE-TABLE, NS-DEF-CACHE-TABLE and NS-USAGE-CACHE-TABLE.
-
-It is synchronous and will block Emacs, but it will message the user of the work
-it is doing, so they are aware Emacs is not frozen, but busy analyzing their
-project."
-  (message "Analysing project for completion...")
+into the given VAR-DEF-CACHE-TABLE, NS-DEF-CACHE-TABLE and NS-USAGE-CACHE-TABLE."
   (anakondo--with-projectile-root
    (let* ((kondo-analyses (anakondo--clj-kondo-analyse-sync (anakondo--get-project-path) (anakondo--get-buffer-lang)))
           (var-defs (gethash :var-definitions kondo-analyses))
@@ -289,7 +294,6 @@ project."
      (anakondo--upsert-var-def-cache var-def-cache-table var-defs)
      (anakondo--upsert-ns-def-cache ns-def-cache-table ns-defs)
      (anakondo--upsert-ns-usage-cache ns-usage-cache-table ns-usages)
-     (message "Analysing project for completion...done")
      root)))
 
 (defun anakondo--clj-kondo-buffer-analyse-sync (var-def-cache-table ns-def-cache-table ns-usage-cache-table)
@@ -316,6 +320,66 @@ for completion, and messaging was excessive in that case."
     (anakondo--upsert-ns-usage-cache ns-usage-cache-table ns-usages curr-ns)
     curr-ns))
 
+(defun anakondo--jar-analize-sync (classpath)
+  (let* ((paths (split-string classpath ":" nil "[[:blank:]\n]*"))
+         (jars (seq-filter
+                (lambda (path)
+                  (string-match-p ".*\.jar$" path))
+                paths)))
+    (let* (jars-tf)
+      (dolist (jar jars jars-tf)
+        (setq jars-tf
+              (append
+               jars-tf
+               (with-temp-buffer
+                 (shell-command (concat "jar tf '" jar "'") t)
+                 (goto-char (point-min))
+                 (let (classes)
+                   (while (not (eobp))
+                     (let ((line (buffer-substring (point)
+                                                   (progn (forward-line 1) (point)))))
+                       (when (string-match "\\(?1:^[^$]+\/[^$]+\\)\.class$" line)
+                         (let* ((linet (match-string 1 line)))
+                           (unless (string-match-p "__init" linet)
+                             (let* ((class (replace-regexp-in-string "/" "." linet)))
+                               (setq classes (cons class classes))))))))
+                   classes))))))))
+
+(defun anakondo--java-analyze-methods-and-fields (classpath class)
+  (let* ((class-map (make-hash-table))
+         methods-and-fields)
+    (with-temp-buffer
+      (shell-command (concat "javap -cp '" classpath "' -public '" class "'") t)
+      (goto-char (point-min))
+      (while (not (eobp))
+        (let* ((line (buffer-substring (point)
+                                       (progn (forward-line 1) (point))))
+               (method-field-map (make-hash-table)))
+          (when (string-match ".*static \\(final \\)?\\(?1:[^\s]+\\) \\(?2:[^\s]+?\\)\\(?3:\(.*\\)?;$" line)
+            (let* ((return-type (match-string 1 line))
+                   (name (match-string 2 line))
+                   (signature (match-string 3 line))
+                   (method? (when signature t)))
+              (puthash :return-type return-type method-field-map)
+              (puthash :name name method-field-map)
+              (puthash :signature signature method-field-map)
+              (puthash :method? method? method-field-map)
+              (setq methods-and-fields (cons method-field-map methods-and-fields)))))))
+    (puthash :methods-and-fields methods-and-fields class-map)
+    (puthash :name class class-map)
+    class-map))
+
+(defun anakondo--java-projectile-analyse-sync (java-classes-cache)
+  "Analyze synchronously the project for all Java classes and their methods and fields.
+
+Updates JAVA-CLASSES-CACHE with the result."
+  (let* ((classpath (anakondo--get-project-path))
+         (classes (anakondo--jar-analize-sync classpath)))
+    (dolist (class classes nil)
+      (puthash (anakondo--string->keyword class)
+               (anakondo--java-analyze-methods-and-fields classpath class)
+               java-classes-cache))))
+
 (defun anakondo--safe-hash-table-values (hash-table)
   "Return hash tables values or nil.
 
@@ -324,13 +388,11 @@ HASH-TABLE is nil."
   (when hash-table
     (hash-table-values hash-table)))
 
-(defun anakondo--get-clj-kondo-completion-candidates (prefix)
+(defun anakondo--get-clj-kondo-completion-candidates ()
   "Return completion candidates at point for current buffer.
 
 Return a candidate list compatible with `completion-at-point' for current
 symbol at point.
-
-PREFIX : not used for filtering, is expected to be the symbol at point looking to be completed
 
 How it works:
 1. It gets the current namespace by analyzing the current buffer with clj-kondo.
@@ -357,7 +419,7 @@ How it works:
          (curr-ns (anakondo--clj-kondo-buffer-analyse-sync var-def-cache ns-def-cache ns-usage-cache)))
     ;; Restore deleted forward-slash
     (when prefix-end-in-forward-slash?
-      (insert-char ?/))
+      (insert ?/))
     (append
      (mapcar
       (lambda (var-def)
@@ -409,6 +471,25 @@ PREFIX-START : start point of PREFIX, candidates are found up to PREFIX-START."
               (setq all-expansions (cons expansion all-expansions)))))))
     all-expansions))
 
+(defun anakondo--get-java-completion-candidates (prefix)
+  (let* ((java-classes-cache (anakondo--get-projectile-java-classes-cache))
+         (class-to-complete (when (string-match "^\\(?1:.*\\)/.*$" prefix)
+                              (match-string 1 prefix))))
+    (append
+     (when class-to-complete
+       (mapcar
+        (lambda (method-or-field)
+          (concat
+           class-to-complete
+           "/"
+           (gethash :name method-or-field)))
+        (gethash :methods-and-fields
+                 (gethash (anakondo--string->keyword class-to-complete) java-classes-cache))))
+     (mapcar
+      (lambda (class-map)
+        (gethash :name class-map))
+      (anakondo--safe-hash-table-values java-classes-cache)))))
+
 (defun anakondo-completion-at-point ()
   "Get anakondo's completion at point.
 
@@ -421,11 +502,32 @@ Return a `completion-at-point' list for use with
       (list
        start
        end
-       (completion-table-with-cache
+       (completion-table-dynamic
         (lambda (prefix)
-          (append
-           (anakondo--get-clj-kondo-completion-candidates prefix)
-           (anakondo--get-local-completion-candidates prefix start))))))))
+          (message (concat "The prefix is: " prefix))
+          ;; Invalidate cache if prefix ends in / since java completion
+          ;; must re-run in that case, as it doesn't initially return
+          ;; completions post /
+          (when (string-match-p "^.*/$" prefix)
+            (setq-local anakondo--completion-candidates-cache nil))
+          (if (and anakondo--completion-candidates-cache
+                   (= start (car anakondo--completion-candidates-cache)))
+              (progn
+                (message "CACHE HIT")
+                (cdr anakondo--completion-candidates-cache))
+            (let* ((candidates (append
+                                (anakondo--get-clj-kondo-completion-candidates)
+                                (anakondo--get-local-completion-candidates prefix start)
+                                (anakondo--get-java-completion-candidates prefix))))
+              (message "CACHE MISS")
+              (setq-local anakondo--completion-candidates-cache (cons start candidates))
+              candidates))))))))
+
+(defun anakondo--projectile-analyse-sync (var-def-cache ns-def-cache ns-usage-cache java-classes-cache)
+  (message "Analysing project for completion...")
+  (anakondo--clj-kondo-projectile-analyse-sync var-def-cache ns-def-cache ns-usage-cache)
+  (anakondo--java-projectile-analyse-sync java-classes-cache)
+  (message "Analysing project for completion...done"))
 
 (defun anakondo--init-projectile-cache (root)
   "Initialize analysis caches for project ROOT.
@@ -439,7 +541,8 @@ it into the newly initialized cache.
 Cache looks like:
 {root {:var-def-cache {ns {var {var-def-map}}}
        :ns-def-cache {ns {ns-def-map}}
-       :ns-usage-cache {ns {to-ns {ns-usage-map}}}}}"
+       :ns-usage-cache {ns {to-ns {ns-usage-map}}}
+       :java-classes {class {methods/fields {signatures}}}}}"
   (unless anakondo--cache
     (setq anakondo--cache (make-hash-table :test 'equal)))
   (let* ((root-cache (anakondo--get-projectile-cache root)))
@@ -447,12 +550,14 @@ Cache looks like:
         (let* ((root-cache (make-hash-table))
                (var-def-cache (make-hash-table))
                (ns-def-cache (make-hash-table))
-               (ns-usage-cache (make-hash-table)))
+               (ns-usage-cache (make-hash-table))
+               (java-classes-cache (make-hash-table)))
           (puthash :var-def-cache var-def-cache root-cache)
           (puthash :ns-def-cache ns-def-cache root-cache)
           (puthash :ns-usage-cache ns-usage-cache root-cache)
+          (puthash :java-classes-cache java-classes-cache root-cache)
           (anakondo--set-projectile-cache root root-cache)
-          (anakondo--clj-kondo-projectile-analyse-sync var-def-cache ns-def-cache ns-usage-cache))
+          (anakondo--projectile-analyse-sync var-def-cache ns-def-cache ns-usage-cache java-classes-cache))
       (let* ((var-def-cache (anakondo--get-projectile-var-def-cache))
              (ns-def-cache (anakondo--get-projectile-ns-def-cache))
              (ns-usage-cache (anakondo--get-projectile-ns-usage-cache)))
@@ -494,8 +599,9 @@ Runs synchronously, and might take a few seconds for big projects."
   (anakondo--minor-mode-guard)
   (let* ((var-def-cache (anakondo--get-projectile-var-def-cache))
          (ns-def-cache (anakondo--get-projectile-ns-def-cache))
-         (ns-usage-cache (anakondo--get-projectile-ns-usage-cache)))
-    (anakondo--clj-kondo-projectile-analyse-sync var-def-cache ns-def-cache ns-usage-cache)))
+         (ns-usage-cache (anakondo--get-projectile-ns-usage-cache))
+         (java-classes-cache (anakondo--get-projectile-java-classes-cache)))
+    (anakondo--projectile-analyse-sync var-def-cache ns-def-cache ns-usage-cache java-classes-cache)))
 
 ;;;;; Support
 
