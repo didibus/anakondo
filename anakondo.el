@@ -345,9 +345,14 @@ for completion, and messaging was excessive in that case."
                                (setq classes (cons class classes))))))))
                    classes))))))))
 
+(defun anakondo--make-class-map (class-name methods-and-fields)
+  (let* ((class-map (make-hash-table)))
+    (puthash :name class-name class-map)
+    (puthash :methods-and-fields methods-and-fields class-map)
+    class-map))
+
 (defun anakondo--java-analyze-methods-and-fields (classpath class)
-  (let* ((class-map (make-hash-table))
-         methods-and-fields)
+  (let* (methods-and-fields)
     (with-temp-buffer
       (shell-command (concat "javap -cp '" classpath "' -public '" class "'") t)
       (goto-char (point-min))
@@ -365,9 +370,7 @@ for completion, and messaging was excessive in that case."
               (puthash :signature signature method-field-map)
               (puthash :method? method? method-field-map)
               (setq methods-and-fields (cons method-field-map methods-and-fields)))))))
-    (puthash :methods-and-fields methods-and-fields class-map)
-    (puthash :name class class-map)
-    class-map))
+    (anakondo--make-class-map class methods-and-fields)))
 
 (defun anakondo--java-projectile-analyse-sync (java-classes-cache)
   "Analyze synchronously the project for all Java classes and their methods and fields.
@@ -377,7 +380,7 @@ Updates JAVA-CLASSES-CACHE with the result."
          (classes (anakondo--jar-analize-sync classpath)))
     (dolist (class classes nil)
       (puthash (anakondo--string->keyword class)
-               (anakondo--java-analyze-methods-and-fields classpath class)
+               (anakondo--make-class-map class '())
                java-classes-cache))))
 
 (defun anakondo--safe-hash-table-values (hash-table)
@@ -477,14 +480,24 @@ PREFIX-START : start point of PREFIX, candidates are found up to PREFIX-START."
                               (match-string 1 prefix))))
     (append
      (when class-to-complete
-       (mapcar
-        (lambda (method-or-field)
-          (concat
-           class-to-complete
-           "/"
-           (gethash :name method-or-field)))
-        (gethash :methods-and-fields
-                 (gethash (anakondo--string->keyword class-to-complete) java-classes-cache))))
+       (let* ((class-map (gethash (anakondo--string->keyword class-to-complete) java-classes-cache))
+              (methods-and-fields (gethash :methods-and-fields class-map))
+              (methods-and-fields (if methods-and-fields
+                                      methods-and-fields
+                                    (let* ((methods-and-fields (anakondo--java-analyze-methods-and-fields
+                                                                (anakondo--get-project-path)
+                                                                class-to-complete)))
+                                      (puthash (anakondo--string->keyword class-to-complete)
+                                               methods-and-fields
+                                               java-classes-cache)
+                                      methods-and-fields))))
+         (mapcar
+          (lambda (method-or-field)
+            (concat
+             class-to-complete
+             "/"
+             (gethash :name method-or-field)))
+          methods-and-fields)))
      (mapcar
       (lambda (class-map)
         (gethash :name class-map))
