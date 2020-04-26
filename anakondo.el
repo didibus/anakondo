@@ -62,6 +62,114 @@
   "Store the last start position in we completed at car,
 and the completion candidates for it at cdr for buffer.")
 
+(defconst anakondo--clojure-default-imports
+  #s(hash-table
+     test equal
+     data ("Compiler" "clojure.lang.Compiler"
+           "AbstractMethodError" "java.lang.AbstractMethodError"
+           "Appendable" "java.lang.Appendable"
+           "ArithmeticException" "java.lang.ArithmeticException"
+           "ArrayIndexOutOfBoundsException" "java.lang.ArrayIndexOutOfBoundsException"
+           "ArrayStoreException" "java.lang.ArrayStoreException"
+           "AssertionError" "java.lang.AssertionError"
+           "Boolean" "java.lang.Boolean"
+           "Byte" "java.lang.Byte"
+           "CharSequence" "java.lang.CharSequence"
+           "Character" "java.lang.Character"
+           "Class" "java.lang.Class"
+           "ClassCastException" "java.lang.ClassCastException"
+           "ClassCircularityError" "java.lang.ClassCircularityError"
+           "ClassFormatError" "java.lang.ClassFormatError"
+           "ClassLoader" "java.lang.ClassLoader"
+           "ClassNotFoundException" "java.lang.ClassNotFoundException"
+           "CloneNotSupportedException" "java.lang.CloneNotSupportedException"
+           "Cloneable" "java.lang.Cloneable"
+           "Comparable" "java.lang.Comparable"
+           "Deprecated" "java.lang.Deprecated"
+           "Double" "java.lang.Double"
+           "Enum" "java.lang.Enum"
+           "EnumConstantNotPresentException" "java.lang.EnumConstantNotPresentException"
+           "Error" "java.lang.Error"
+           "Exception" "java.lang.Exception"
+           "ExceptionInInitializerError" "java.lang.ExceptionInInitializerError"
+           "Float" "java.lang.Float"
+           "IllegalAccessError" "java.lang.IllegalAccessError"
+           "IllegalAccessException" "java.lang.IllegalAccessException"
+           "IllegalArgumentException" "java.lang.IllegalArgumentException"
+           "IllegalMonitorStateException" "java.lang.IllegalMonitorStateException"
+           "IllegalStateException" "java.lang.IllegalStateException"
+           "IllegalThreadStateException" "java.lang.IllegalThreadStateException"
+           "IncompatibleClassChangeError" "java.lang.IncompatibleClassChangeError"
+           "IndexOutOfBoundsException" "java.lang.IndexOutOfBoundsException"
+           "InheritableThreadLocal" "java.lang.InheritableThreadLocal"
+           "InstantiationError" "java.lang.InstantiationError"
+           "InstantiationException" "java.lang.InstantiationException"
+           "Integer" "java.lang.Integer"
+           "InternalError" "java.lang.InternalError"
+           "InterruptedException" "java.lang.InterruptedException"
+           "Iterable" "java.lang.Iterable"
+           "LinkageError" "java.lang.LinkageError"
+           "Long" "java.lang.Long"
+           "Math" "java.lang.Math"
+           "NegativeArraySizeException" "java.lang.NegativeArraySizeException"
+           "NoClassDefFoundError" "java.lang.NoClassDefFoundError"
+           "NoSuchFieldError" "java.lang.NoSuchFieldError"
+           "NoSuchFieldException" "java.lang.NoSuchFieldException"
+           "NoSuchMethodError" "java.lang.NoSuchMethodError"
+           "NoSuchMethodException" "java.lang.NoSuchMethodException"
+           "NullPointerException" "java.lang.NullPointerException"
+           "Number" "java.lang.Number"
+           "NumberFormatException" "java.lang.NumberFormatException"
+           "Object" "java.lang.Object"
+           "OutOfMemoryError" "java.lang.OutOfMemoryError"
+           "Override" "java.lang.Override"
+           "Package" "java.lang.Package"
+           "Process" "java.lang.Process"
+           "ProcessBuilder" "java.lang.ProcessBuilder"
+           "Readable" "java.lang.Readable"
+           "Runnable" "java.lang.Runnable"
+           "Runtime" "java.lang.Runtime"
+           "RuntimeException" "java.lang.RuntimeException"
+           "RuntimePermission" "java.lang.RuntimePermission"
+           "SecurityException" "java.lang.SecurityException"
+           "SecurityManager" "java.lang.SecurityManager"
+           "Short" "java.lang.Short"
+           "StackOverflowError" "java.lang.StackOverflowError"
+           "StackTraceElement" "java.lang.StackTraceElement"
+           "StrictMath" "java.lang.StrictMath"
+           "String" "java.lang.String"
+           "StringBuffer" "java.lang.StringBuffer"
+           "StringBuilder" "java.lang.StringBuilder"
+           "StringIndexOutOfBoundsException" "java.lang.StringIndexOutOfBoundsException"
+           "SuppressWarnings" "java.lang.SuppressWarnings"
+           "System" "java.lang.System"
+           "Thread" "java.lang.Thread"
+           "Thread$State" "java.lang.Thread$State"
+           "Thread$UncaughtExceptionHandler" "java.lang.Thread$UncaughtExceptionHandler"
+           "ThreadDeath" "java.lang.ThreadDeath"
+           "ThreadGroup" "java.lang.ThreadGroup"
+           "ThreadLocal" "java.lang.ThreadLocal"
+           "Throwable" "java.lang.Throwable"
+           "TypeNotPresentException" "java.lang.TypeNotPresentException"
+           "UnknownError" "java.lang.UnknownError"
+           "UnsatisfiedLinkError" "java.lang.UnsatisfiedLinkError"
+           "UnsupportedClassVersionError" "java.lang.UnsupportedClassVersionError"
+           "UnsupportedOperationException" "java.lang.UnsupportedOperationException"
+           "VerifyError" "java.lang.VerifyError"
+           "VirtualMachineError" "java.lang.VirtualMachineError"
+           "Void" "java.lang.Void"
+           "BigDecimal" "java.math.BigDecimal"
+           "BigInteger" "java.math.BigInteger"
+           "concurrent.Callable" "java.util.concurrent.Callable")))
+
+(defconst anakondo--clojure-default-imports-reverse
+  (let* ((clojure-default-imports-reverse (make-hash-table :test 'equal)))
+    (maphash
+     (lambda (k v)
+       (puthash v k clojure-default-imports-reverse))
+     anakondo--clojure-default-imports)
+    clojure-default-imports-reverse))
+
 ;;;;; Keymaps
 
 (defvar anakondo-minor-mode-map
@@ -320,12 +428,11 @@ for completion, and messaging was excessive in that case."
     (anakondo--upsert-ns-usage-cache ns-usage-cache-table ns-usages curr-ns)
     curr-ns))
 
-(defun anakondo--jar-analize-sync (classpath)
-  (let* ((paths (split-string classpath ":" nil "[[:blank:]\n]*"))
-         (jars (seq-filter
+(defun anakondo--jar-analize-sync (classpath-list)
+  (let* ((jars (seq-filter
                 (lambda (path)
                   (string-match-p ".*\.jar$" path))
-                paths)))
+                classpath-list)))
     (let* (jars-tf)
       (dolist (jar jars jars-tf)
         (setq jars-tf
@@ -351,7 +458,7 @@ for completion, and messaging was excessive in that case."
     (puthash :methods-and-fields methods-and-fields class-map)
     class-map))
 
-(defun anakondo--java-analyze-methods-and-fields (classpath class)
+(defun anakondo--java-analyze-class-map (classpath class)
   (let* (methods-and-fields)
     (with-temp-buffer
       (shell-command (concat "javap -cp '" classpath "' -public '" class "'") t)
@@ -372,15 +479,48 @@ for completion, and messaging was excessive in that case."
               (setq methods-and-fields (cons method-field-map methods-and-fields)))))))
     (anakondo--make-class-map class methods-and-fields)))
 
+(defun anakondo--get-java-boot-classpath-list ()
+  (let* ((boot-classpath (with-temp-buffer
+                           (shell-command "java -XshowSettings:properties -version" t)
+                           (goto-char (point-min))
+                           (search-forward "sun.boot.class.path =" nil t)
+                           (kill-line 0)
+                           (let* (boot-classpath)
+                             (catch 'done
+                               (while (not (eobp))
+                                 (let* ((line (buffer-substring-no-properties (line-beginning-position) (line-end-position))))
+                                   (when (string-match-p "^.*=.*$" line)
+                                     (throw 'done nil))
+                                   (setq boot-classpath
+                                         (cons
+                                          (string-trim
+                                           line)
+                                          boot-classpath))
+                                   (forward-line 1))))
+                             boot-classpath))))
+    boot-classpath))
+
+(defun anakondo--get-java-analysis-classpath (as)
+  (let* ((project-path (anakondo--get-project-path))
+         (project-classpaths-list (split-string project-path ":" nil "[[:blank:]\n]*"))
+         (java-boot-classpath-list (anakondo--get-java-boot-classpath-list))
+         (analysis-classpath-list (concatenate 'list project-classpaths-list java-boot-classpath-list)))
+    (case as
+      ('list analysis-classpath-list)
+      ('cp (string-join analysis-classpath-list ":")))))
+
 (defun anakondo--java-projectile-analyse-sync (java-classes-cache)
   "Analyze synchronously the project for all Java classes and their methods and fields.
 
 Updates JAVA-CLASSES-CACHE with the result."
-  (let* ((classpath (anakondo--get-project-path))
-         (classes (anakondo--jar-analize-sync classpath)))
+  (let* ((analysis-classpath-list (anakondo--get-java-analysis-classpath 'list))
+         (classes (anakondo--jar-analize-sync analysis-classpath-list)))
     (dolist (class classes nil)
       (puthash (anakondo--string->keyword class)
-               (anakondo--make-class-map class '())
+               ;; We will delay the loading of the methods-and-fields
+               ;; until necessary for those whose methods-and-fields
+               ;; are marked as 'lazy.
+               (anakondo--make-class-map class 'lazy)
                java-classes-cache))))
 
 (defun anakondo--safe-hash-table-values (hash-table)
@@ -480,28 +620,33 @@ PREFIX-START : start point of PREFIX, candidates are found up to PREFIX-START."
                               (match-string 1 prefix))))
     (append
      (when class-to-complete
-       (let* ((class-map (gethash (anakondo--string->keyword class-to-complete) java-classes-cache))
-              (methods-and-fields (gethash :methods-and-fields class-map))
-              (methods-and-fields (if methods-and-fields
-                                      methods-and-fields
-                                    (let* ((methods-and-fields (anakondo--java-analyze-methods-and-fields
-                                                                (anakondo--get-project-path)
-                                                                class-to-complete)))
-                                      (puthash (anakondo--string->keyword class-to-complete)
-                                               methods-and-fields
-                                               java-classes-cache)
-                                      methods-and-fields))))
-         (mapcar
-          (lambda (method-or-field)
-            (concat
-             class-to-complete
-             "/"
-             (gethash :name method-or-field)))
-          methods-and-fields)))
+       (let* ((default-import (gethash class-to-complete anakondo--clojure-default-imports)))
+         (when default-import
+           (setq class-to-complete default-import))
+         (let* ((class-map (gethash (anakondo--string->keyword class-to-complete) java-classes-cache)))
+           (when class-map
+             (let* ((methods-and-fields (gethash :methods-and-fields class-map))
+                    (methods-and-fields (if (eq methods-and-fields 'lazy)
+                                            (let* ((class-map (anakondo--java-analyze-class-map
+                                                               (anakondo--get-java-analysis-classpath 'cp)
+                                                               class-to-complete)))
+                                              (puthash (anakondo--string->keyword class-to-complete)
+                                                       class-map
+                                                       java-classes-cache)
+                                              (gethash :methods-and-fields class-map))
+                                          methods-and-fields)))
+               (mapcar
+                (lambda (method-or-field)
+                  (if default-import
+                      (concat (gethash class-to-complete anakondo--clojure-default-imports-reverse)
+                              "/" (gethash :name method-or-field))
+                    (concat class-to-complete "/" (gethash :name method-or-field))))
+                methods-and-fields))))))
      (mapcar
       (lambda (class-map)
         (gethash :name class-map))
-      (anakondo--safe-hash-table-values java-classes-cache)))))
+      (anakondo--safe-hash-table-values java-classes-cache))
+     (hash-table-keys anakondo--clojure-default-imports))))
 
 (defun anakondo-completion-at-point ()
   "Get anakondo's completion at point.
@@ -517,7 +662,6 @@ Return a `completion-at-point' list for use with
        end
        (completion-table-dynamic
         (lambda (prefix)
-          (message (concat "The prefix is: " prefix))
           ;; Invalidate cache if prefix ends in / since java completion
           ;; must re-run in that case, as it doesn't initially return
           ;; completions post /
@@ -525,16 +669,16 @@ Return a `completion-at-point' list for use with
             (setq-local anakondo--completion-candidates-cache nil))
           (if (and anakondo--completion-candidates-cache
                    (= start (car anakondo--completion-candidates-cache)))
-              (progn
-                (message "CACHE HIT")
-                (cdr anakondo--completion-candidates-cache))
+              (cdr (append
+                    anakondo--completion-candidates-cache
+                    (anakondo--get-local-completion-candidates prefix start)))
             (let* ((candidates (append
                                 (anakondo--get-clj-kondo-completion-candidates)
-                                (anakondo--get-local-completion-candidates prefix start)
                                 (anakondo--get-java-completion-candidates prefix))))
-              (message "CACHE MISS")
               (setq-local anakondo--completion-candidates-cache (cons start candidates))
-              candidates))))))))
+              (append
+               candidates
+               (anakondo--get-local-completion-candidates prefix start))))))))))
 
 (defun anakondo--projectile-analyse-sync (var-def-cache ns-def-cache ns-usage-cache java-classes-cache)
   (message "Analysing project for completion...")
@@ -628,7 +772,8 @@ Runs synchronously, and might take a few seconds for big projects."
   "Tear down command `anakondo-minor-mode' in current buffer."
   (remove-hook 'completion-at-point-functions #'anakondo-completion-at-point t)
   (anakondo--with-projectile-root
-   (anakondo--delete-projectile-cache root)))
+   (anakondo--delete-projectile-cache root))
+  (setq-local anakondo--completion-candidates-cache nil))
 
 (defun anakondo--minor-mode-guard ()
   "Signal an error when command `anakondo-minor-mode' is not on.

@@ -115,9 +115,22 @@ This also goes if you turn on/off the modes manually, except in that case, order
 
 Additions
 + Add support for locals auto-completion
++ Add support for Java classes auto-completion (fully qualified + default imports only for now) (can only complete from jars on the classpath, no support for class files on the classpath for now)
++ Add support for Java static methods and fields auto-completion on press of `/`
+
+Changes
++ Much faster auto-completion when using "as you type" completion like company-mode
 
 Fixes
 + Fix bug where sym/ says No matching candidates instead of listing the available candidates that begin with sym/
+
+Internal
++ Added a buffer local cache of completion candidates which keeps track of the completion list for the last start positions of completions, makes "as you type" completions much faster
++ Infers Java boot classpath by using the `java` command itself
++ Uses dabbrev with some custom heuristic to identify symbols and syntax-ppsp for locals completion
++ Uses javap to find available static methods and fields for a given class
++ Uses jar to find all classes in the classpath jars
++ Uses hard-coded list of default imports in Clojure 1.10 to auto-complete default Java imports. Will need to keep it updated as new Clojure versions release. Also means if user is using older version missing a default import, we might auto-complete it even though it doesn't work with their target Clojure version.
 
 ** 0.1.2
 
@@ -163,7 +176,6 @@ Planned Features
 + Have project analysis refresh automatically on file watch of deps.edn
 + Add support for lein projects
 + Add support for boot projects
-+ Have fallback logic to find project root if projectile is missing
 + Add auto-installer for clj-kondo on mode enter, if it is missing from path
 + Add command to update clj-kondo, possibly have it run on mode-enter as well (if it was auto-installed by mode)
 + Add support for jump to definition
@@ -175,7 +187,9 @@ Planned Features
 + Add support for clj-kondo driven font-lock
 + Add support for completing keywords : pending [[https://github.com/borkdude/clj-kondo/issues/855][clj-kondo-855]]
 + Add support for completing refered vars : pending [[https://github.com/borkdude/clj-kondo/issues/856][clj-kondo-856]]
-+ Add support for completing Java methods, classes and packages (possibly using javap and jar)
++ Add support for completing Java non-static methods and fields
++ Add support for completing Java inner classes, with their possible static and non-static methods and fields
++ Add support for completing Java imported classes, using class name only
 
 * Credits
 
