@@ -111,6 +111,15 @@ This also goes if you turn on/off the modes manually, except in that case, order
 :TOC:      :depth 0
 :END:
 
+
+** 0.1.2
+
+Internal
++ Fixed all checkdoc reported issues
++ Fixed all package-lint-current-buffer reported issues
++ Added compile require on subr-x for use of hash-table-values
++ Fixed package requires for MELPA
+
 ** 0.1.1
 
 Fixes

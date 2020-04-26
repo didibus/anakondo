@@ -1,12 +1,12 @@
-;;; anakondo.el --- Adds clj-kondo based Clojure[Script] editing facilities.  -*- lexical-binding: t; -*-
+;;; anakondo.el --- Adds clj-kondo based Clojure[Script] editing facilities  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2020  Didier A.
 
 ;; Author: Didier A. <didibus@users.noreply.github.com>
 ;; URL: https://github.com/didibus/anakondo
-;; Version: 0.1.1
-;; Package-Requires: ((emacs "26.3") (json) (projectile))
-;; Keywords: clojure, clojurescript, cljc, clj-kondo, completion
+;; Version: 0.1.2
+;; Package-Requires: ((emacs "26.3") (projectile "2.1.0"))
+;; Keywords: clojure, clojurescript, cljc, clj-kondo, completion, languages, tools
 
 ;; This file is not part of GNU Emacs.
 
@@ -39,6 +39,7 @@
 
 (require 'json)
 (require 'projectile)
+(eval-when-compile (require 'subr-x))
 
 ;;;; Customization
 
@@ -159,12 +160,13 @@ Return nil if Clojure not detected."
 
 Is synchronous, and will block Emacs until done.
 
-PATH is the value passed to clj-kondo's `--lint' option. It can be a path to a file,
-directory or classpath. In the case of a directory or classpath, only .clj, .cljs and
-.cljc will be processed. Use `-' as path for having it analyze current buffer.
+PATH is the value passed to clj-kondo's `--lint' option. It can be a path to a
+file, directory or classpath. In the case of a directory or classpath,
+only .clj, .cljs and .cljc will be processed. Use `-' as path for having it
+analyze current buffer.
 
-DEFAULT-LANG is the value passed to clj-kondo's `--lang' option. If lang cannot be
-derived from the file extension this option will be used."
+DEFAULT-LANG is the value passed to clj-kondo's `--lang' option. If lang cannot
+be derived from the file extension this option will be used."
   (let* ((buffer "*anakondo*")
          (analysis-key :analysis)
          (kondo-command (concat "clj-kondo --lint '" path
@@ -199,11 +201,15 @@ It uses Clojure's `tools.deps' to get the project's classpath."
     (intern (concat ":" str))))
 
 (defun anakondo--upsert-var-def-cache (var-def-cache-table var-defs &optional invalidation-ns)
-  "Update or insert into VAR-DEF-CACHE-TABLE the clj-kondo var-definitions from VAR-DEFS.
+  "Update or insert var-definitions into cache.
 
-INVALIDATION-NS : optional, can be a keyword of the namespace to invalidate before updating.
-                  This means it'll replace the cached var-definitions for that namespace
-                  instead of merging it in. This is useful when we want to remove var-definitions
+Update or insert into VAR-DEF-CACHE-TABLE the clj-kondo var-definitions from
+VAR-DEFS.
+
+INVALIDATION-NS : optional, can be a keyword of the namespace to invalidate
+                  before updating. This means it'll replace the cached
+                  var-definitions for that namespace instead of merging it in.
+                  This is useful when we want to remove var-definitions
                   no longer present in the source code from the cache."
   (when invalidation-ns
     (remhash invalidation-ns var-def-cache-table))
@@ -224,7 +230,10 @@ INVALIDATION-NS : optional, can be a keyword of the namespace to invalidate befo
    var-def-cache-table))
 
 (defun anakondo--upsert-ns-def-cache (ns-def-cache-table ns-defs)
-  "Update or insert into NS-DEF-CACHE-TABLE the clj-kondo ns-definitions from NS-DEFS."
+  "Update or insert ns-definitions into cache.
+
+Update or insert into NS-DEF-CACHE-TABLE the clj-kondo ns-definitions from
+NS-DEFS."
   (seq-reduce
    (lambda (hash-table ns-def)
      (let* ((key (anakondo--string->keyword (gethash :name ns-def))))
@@ -234,12 +243,16 @@ INVALIDATION-NS : optional, can be a keyword of the namespace to invalidate befo
    ns-def-cache-table))
 
 (defun anakondo--upsert-ns-usage-cache (ns-usage-cache-table ns-usages &optional invalidation-ns)
-  "Update or insert into NS-USAGE-CACHE-TABLE the clj-kondo ns-usages from NS-USAGES.
+  "Update or insert ns-usages into cache.
 
-INVALIDATION-NS : optional, can be a keyword of the namespace to invalidate before updating.
-                  This means it'll replace the cached ns-usages for that namespace
-                  instead of merging it in. This is useful when we want to remove ns-usages
-                  no longer present in the source code from the cache."
+Update or insert into NS-USAGE-CACHE-TABLE the clj-kondo ns-usages from
+NS-USAGES.
+
+INVALIDATION-NS : optional, can be a keyword of the namespace to invalidate
+                  before updating. This means it'll replace the cached ns-usages
+                  for that namespace instead of merging it in. This is useful
+                  when we want to remove ns-usages no longer present in the
+                  source code from the cache."
   (when invalidation-ns
     (remhash invalidation-ns ns-usage-cache-table))
   (seq-reduce
@@ -259,10 +272,14 @@ INVALIDATION-NS : optional, can be a keyword of the namespace to invalidate befo
    ns-usage-cache-table))
 
 (defun anakondo--clj-kondo-projectile-analyse-sync (var-def-cache-table ns-def-cache-table ns-usage-cache-table)
-  "Analyze synchronously the current project and upsert the analysis result into the given VAR-DEF-CACHE-TABLE, NS-DEF-CACHE-TABLE and NS-USAGE-CACHE-TABLE.
+  "Analyze project synchronously using clj-kondo.
+
+Analyze synchronously the current project and upsert the analysis result
+into the given VAR-DEF-CACHE-TABLE, NS-DEF-CACHE-TABLE and NS-USAGE-CACHE-TABLE.
 
 It is synchronous and will block Emacs, but it will message the user of the work
-it is doing, so they are aware Emacs is not frozen, but busy analyzing their project."
+it is doing, so they are aware Emacs is not frozen, but busy analyzing their
+project."
   (message "Analysing project for completion...")
   (anakondo--with-projectile-root
    (let* ((kondo-analyses (anakondo--clj-kondo-analyse-sync (anakondo--get-project-path) (anakondo--get-buffer-lang)))
@@ -276,11 +293,15 @@ it is doing, so they are aware Emacs is not frozen, but busy analyzing their pro
      root)))
 
 (defun anakondo--clj-kondo-buffer-analyse-sync (var-def-cache-table ns-def-cache-table ns-usage-cache-table)
-  "Analyze synchronously the current buffer and upsert the analysis result into the given VAR-DEF-CACHE-TABLE, NS-DEF-CACHE-TABLE and NS-USAGE-CACHE-TABLE.
+  "Analyze buffer synchronously using clj-kondo.
 
-It is synchronous and will block Emacs, but should be fast enough we don't bother messaging the user.
-Also, this is called by completion-at-point, which for company-mode, means it is called on every
-keystroke that qualifies for completion, and messaging was excessive in that case."
+Analyze synchronously the current buffer and upsert the analysis result into
+the given VAR-DEF-CACHE-TABLE, NS-DEF-CACHE-TABLE and NS-USAGE-CACHE-TABLE.
+
+It is synchronous and will block Emacs, but should be fast enough we don't
+bother messaging the user. Also, this is called by `completion-at-point', which
+for command `company-mode', means it is called on every keystroke that qualifies
+for completion, and messaging was excessive in that case."
   (let* ((kondo-analyses (anakondo--clj-kondo-analyse-sync "-" (anakondo--get-buffer-lang)))
          (var-defs (gethash :var-definitions kondo-analyses))
          (ns-defs (gethash :namespace-definitions kondo-analyses))
@@ -296,22 +317,30 @@ keystroke that qualifies for completion, and messaging was excessive in that cas
     curr-ns))
 
 (defun anakondo--safe-hash-table-values (hash-table)
-  "Like `hash-table-values', but return nil instead of signaling an error when HASH-TABLE is nil."
+  "Return hash tables values or nil.
+
+Like `hash-table-values', but return nil instead of signaling an error when
+HASH-TABLE is nil."
   (when hash-table
     (hash-table-values hash-table)))
 
 (defun anakondo--get-completion-candidates ()
-  "Return a candidate list compatible with completion-at-point for current symbol at point.
+  "Return completion candidates at point for current buffer.
+
+Return a candidate list compatible with `completion-at-point' for current
+symbol at point.
 
 How it works:
 1. It gets the current namespace by analyzing the current buffer with clj-kondo.
-2. As it analyses the current buffer with clj-kondo, it will also take this opportunity
-   to upsert the result back into the analysis cache of the current project.
-3. It will then grab from the current project's caches the vars from the current namespace
-   and the vars from all namespaces it requires, as well as the list of all available
-   namespaces and join them all into out candidates list.
-4. It'll properly prefix the alias or the namespace qualifier for Vars from the required
-   namespaces. If there is an alias, it uses the alias, else the namespace qualifier.
+2. As it analyses the current buffer with clj-kondo, it will also take this
+   opportunity to upsert the result back into the analysis cache of the current
+   project.
+3. It will then grab from the current project's caches the vars from the current
+   namespace and the vars from all namespaces it requires, as well as the list
+   of all available namespaces and join them all into out candidates list.
+4. It'll properly prefix the alias or the namespace qualifier for Vars from the
+   required namespaces. If there is an alias, it uses the alias, else the
+   namespace qualifier.
 5. Does not support refer yet.
 6. Does not support keywords yet.
 7. Does not support locals yet."
@@ -347,7 +376,10 @@ How it works:
       (anakondo--safe-hash-table-values (gethash curr-ns ns-usage-cache))))))
 
 (defun anakondo-completion-at-point ()
-  "Return a `completion-at-point' list for use with `completion-at-point-functions' generated from clj-kondo's analysis."
+  "Get anakondo's completion at point.
+
+Return a `completion-at-point' list for use with
+`completion-at-point-functions' generated from clj-kondo's analysis."
   (let* ((bounds (anakondo--completion-symbol-bounds))
          (start (car bounds))
          (end (cdr bounds)))
@@ -360,10 +392,13 @@ How it works:
           (anakondo--get-completion-candidates)))))))
 
 (defun anakondo--init-projectile-cache (root)
-  "Initialize clj-kondo analysis cache of caches for given ROOT, if it isn't already.
+  "Initialize analysis caches for project ROOT.
 
-This includes performing initial clj-kondo project wide analysis and upserting it
-into the newly initialized cache.
+Initialize clj-kondo analysis cache of caches for given ROOT, if it isn't
+already.
+
+This includes performing initial clj-kondo project wide analysis and upserting
+it into the newly initialized cache.
 
 Cache looks like:
 {root {:var-def-cache {ns {var {var-def-map}}}
@@ -429,19 +464,22 @@ Runs synchronously, and might take a few seconds for big projects."
 ;;;;; Support
 
 (defun anakondo--minor-mode-enter ()
-  "Setup `anakondo-minor-mode' in current buffer."
+  "Setup command `anakondo-minor-mode' in current buffer."
   (add-hook 'completion-at-point-functions #'anakondo-completion-at-point nil t)
   (anakondo--with-projectile-root
    (anakondo--init-projectile-cache root)))
 
 (defun anakondo--minor-mode-exit ()
-  "Tear down `anakondo-minor-mode' in current buffer."
+  "Tear down command `anakondo-minor-mode' in current buffer."
   (remove-hook 'completion-at-point-functions #'anakondo-completion-at-point t)
   (anakondo--with-projectile-root
    (anakondo--delete-projectile-cache root)))
 
 (defun anakondo--minor-mode-guard ()
-  "Signal an error when `anakondo-minor-mode' is not on in current buffer."
+  "Signal an error when command `anakondo-minor-mode' is not on.
+
+Signal an error when command `anakondo-minor-mode' is not on in current
+buffer."
   (unless anakondo-minor-mode
     (error "Anakondo minor mode not on in current buffer")))
 
