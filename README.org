@@ -15,11 +15,17 @@ Current Features:
 
 * Screenshots
 
+Clojure completion of namespaces and global Vars and fns without needing to be connected to a REPL:
+
 #+CAPTION: Example Clojure global Vars and namespace completion using anakondo
 [[./screenshots/anakondo-auto-completion-no-repl-demo.gif]]
 
+Clojure completion of local bindings without needing to be connected to a REPL, which works even with unbalanced expressions:
+
 #+CAPTION: Example Clojure local binding completion using anakondo
 [[./screenshots/anakondo-locals-auto-completion-no-repl-demo.gif]]
+
+Java completion of qualified classes, default Java class imports (like Math, Thread, Integer, etc.), and of public static methods and fields, all without needing to be connected to a REPL:
 
 #+CAPTION: Example Java classes and static methods and fields completion using anakondo
 [[./screenshots/anakondo-java-auto-completion-no-repl-demo.gif]]
