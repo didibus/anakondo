@@ -6,14 +6,23 @@
 
 This package makes use of clj-kondo's analysis data to provide code editing facilities related to Clojure, ClojureScript and cljc source. This means you get advanced editing features like auto-complete without the need for a connected REPL, because clj-kondo performs its magic using static source code analysis.
 
-Currently, it gives you contextual auto-completion using completion-at-point, which works without a REPL connected, since it relies on clj-kondo's static source analysis. It will list out all available Vars, Ns and Aliases in a given buffer. 
+Current Features:
 
-It supports the notion of projects, using projectile and Clojure's tools.deps. This means it'll pick up the buffer's current project root using projectile, and it will use Clojure's tools.deps to get the project's classpath. If it can't find either, it'll only auto-complete within the buffer, it won't be able to show candidates from the required dependencies.
++ It gives you contextual auto-completion using completion-at-point, which works without a REPL connected, since it relies on clj-kondo's static source analysis. It will list out all available Vars, Ns and Aliases in a given buffer.
++ It can also perform locals completion, using an Emacs implemented heuristic completion based on dabbrev that works really well in practice and can handle unbalanced code.
++ It can also complete Java classes and their static methods and fields. It does so by relying on jar and javap JDK command line binaries.
++ It supports the notion of projects, using projectile and Clojure's tools.deps. This means it'll pick up the buffer's current project root using projectile, and it will use Clojure's tools.deps to get the project's classpath. If it can't find either, it'll only auto-complete within the buffer, it won't be able to show candidates from the required dependencies.
 
 * Screenshots
 
-#+CAPTION: Example completion using anakondo
+#+CAPTION: Example Clojure global Vars and namespace completion using anakondo
 [[./screenshots/anakondo-auto-completion-no-repl-demo.gif]]
+
+#+CAPTION: Example Clojure local binding completion using anakondo
+[[./screenshots/anakondo-locals-auto-completion-no-repl-demo.gif]]
+
+#+CAPTION: Example Java classes and static methods and fields completion using anakondo
+[[./screenshots/anakondo-java-auto-completion-no-repl-demo.gif]]
 
 * Contents                                                         :noexport:
 :PROPERTIES:
@@ -35,17 +44,38 @@ It supports the notion of projects, using projectile and Clojure's tools.deps. T
 
 ** Prerequisites
 
-Anakondo needs the Clojure CLI tools.deps and clj-kondo to be installed and accessible from Emacs in order to run properly. To do so:
+For Clojure[Script] completion, Anakondo needs the Clojure CLI tools.deps and clj-kondo to be installed and accessible from Emacs in order to run properly. To do so:
 
 1. Install clj-kondo by following its [[https://github.com/borkdude/clj-kondo/blob/master/doc/install.md][install instructions]].
 2. Make sure =clj-kondo= is in your shell's ~PATH~.
 3. Install the Clojure CLI tools.deps by following its [[https://clojure.org/guides/getting_started#_clojure_installer_and_cli_tools][install instruction]].
 4. Make sure the =clojure= CLI is in your shell's ~PATH~.
-5. Now proceed with one of the following strategies to install the anakondo package in your Emacs.
+
+For Java completion, you also need to be sure that you have a JDK installed and that its ~/bin~ folder is on the environment PATH used by Emacs.
 
 ** MELPA
 
-Not in MELPA yet, but should be coming soon.
+1. Run: ~M-x package-install anakondo~
+2. Now put this in your init file:
+   + If you want to pre-load it:
+#+BEGIN_SRC elisp
+;; Load anakondo to make available its minor mode in clojure buffers
+(require 'anakondo)
+#+END_SRC
+   + If you want to lazy load it:
+#+BEGIN_SRC elisp
+;; Delays loading of anakondo until a clojure buffer is used
+(autoload 'anakondo-minor-mode "anakondo")
+#+END_SRC
+
+** use-package
+
+Put this in your in your init file:
+#+begin_src emacs-lisp :tangle yes
+(use-package anakondo
+  :ensure t
+  :commands anakondo-minor-mode)
+#+end_src
 
 ** Manual
 
@@ -94,7 +124,7 @@ If you are also using Cider, the order in which you add the hooks matters in the
 1. If you add anakondo to the Clojure mode hooks first, then completion will first try to use anakondo's, and only if it can't complete the form will it then try to use Cider's completion. This means if you try to complete a keyword for example, it'll fallback to Cider's, but for completing symbols it won't, even if it finds no candidates.
 2. Otherwise, if you add Cider to the Clojure mode hooks first, then completion will first try to use Cider's, and only if Cider completion is not available, because there is no connected REPL, will it then fallback to try anakondo's completion. If Cider completion is available (because you have a REPL connected), it will never fallback to trying anakondo's completion, even if Cider doesn't find any completion candidates.
 
-*Currently, I recommend adding anakondo after Cider*. This will make it so when no REPL is connected, you have anakondo's clj-kondo based static analysis completion. While when a REPL is running, you have Cider's completion, which currently gives you more information and includes locals and java classes. If you do it the other way around, when a REPL is running, if anakondo find completions you will only see the ones it found, which would be missing local bindings and java classes. I'll be exploring options to have the completions merged in the future, so we get the best of both worlds.
+*Currently, I recommend adding anakondo after Cider*. This will make it so when no REPL is connected, you have anakondo's clj-kondo based static analysis completion. While when a REPL is running, you have Cider's completion. If you do it the other way around, when a REPL is running, if anakondo find completions you will only see the ones it found. I'll be exploring options to have the completions merged in the future, so we get the best of both worlds.
 
 This also goes if you turn on/off the modes manually, except in that case, order and effect are reversed. The last mode you turn on will be the one who is in charge of completion first. While with the hooks, it is the first mode you add to the hook that will be in charge of completion first.
 
@@ -105,6 +135,11 @@ This also goes if you turn on/off the modes manually, except in that case, order
 + If dependency completion isn't working, remember that =anakondo= only supports =tools.deps= for now, if you don't have a =deps.edn= for your project, it will pick up your global =deps.edn= instead, it won't use your lein =project.clj= or boot =build.boot= dependencies.
 + If you've disabled cider-mode, and somehow anakondo completion stopped working, this is because of a known bug in cider-mode, which removes all configured completion for the buffer, not just its own, I am trying to get this fixed in cider as well.
 + If you've killed the REPL, and somehow anakondo completion doesn't seem to be starting back up, this is also due to a bug in cider, where it deletes all configured completion for the buffer on repl quit. I am trying to get this fixed in cider as well.
++ For Java completions of the default imports, they are going to be the ones defined by Clojure 1.10. So if you use an older or newer version of Clojure, you'll still see the completion of the imports from Clojure 1.10. So don't take it as a source of truth.
++ The list of Java classes you get completed comes from the boot classpath specified by the =java= command which is on your environment PATH, and the Java dependencies defined in your project's deps.edn. So if you use Java 8, you will see the Java 8 standard classes, if you use Java 11, you will see Java 11's standard classes, etc.
++ Only Java classes coming from a Jar on your boot classpath and classpath will be completed. If you have =.class= files in your boot classpath or classpath they will not be completed for now. So if you depend on Java dependencies, make sure it is through a Jar, and not a folder containing =.class= files if you want completion for them.
++ To auto-complete the static methods and fields of a Java class, type =/= after the class and call your completion function, such as completion-at-point or company-indent-or-complete-common, etc.
++ Java static methods and fields completion doesn't work with custom imports for now, only fully qualified and default imports will get completion.
 
 * Changelog
 :PROPERTIES:
@@ -116,7 +151,7 @@ This also goes if you turn on/off the modes manually, except in that case, order
 Additions
 + Add support for locals auto-completion
 + Add support for Java classes auto-completion (fully qualified + default imports only for now) (can only complete from jars on the classpath, no support for class files on the classpath for now)
-+ Add support for Java static methods and fields auto-completion on press of `/`
++ Add support for Java static methods and fields auto-completion on press of =/=
 
 Changes
 + Much faster auto-completion when using "as you type" completion like company-mode
@@ -126,7 +161,7 @@ Fixes
 
 Internal
 + Added a buffer local cache of completion candidates which keeps track of the completion list for the last start positions of completions, makes "as you type" completions much faster
-+ Infers Java boot classpath by using the `java` command itself
++ Infers Java boot classpath by using the =java= command itself
 + Uses dabbrev with some custom heuristic to identify symbols and syntax-ppsp for locals completion
 + Uses javap to find available static methods and fields for a given class
 + Uses jar to find all classes in the classpath jars

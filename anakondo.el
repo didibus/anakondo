@@ -429,6 +429,7 @@ for completion, and messaging was excessive in that case."
     curr-ns))
 
 (defun anakondo--jar-analize-sync (classpath-list)
+  "Return the list of Java classes contained in the Jars from CLASSPATH-LIST."
   (let* ((jars (seq-filter
                 (lambda (path)
                   (string-match-p ".*\.jar$" path))
@@ -453,12 +454,19 @@ for completion, and messaging was excessive in that case."
                    classes))))))))
 
 (defun anakondo--make-class-map (class-name methods-and-fields)
+  "Make a java class definition hash table map.
+
+{:name CLASS-NAME
+ :methods-and-fields METHODS-AND-FIELDS}"
   (let* ((class-map (make-hash-table)))
     (puthash :name class-name class-map)
     (puthash :methods-and-fields methods-and-fields class-map)
     class-map))
 
 (defun anakondo--java-analyze-class-map (classpath class)
+  "Return the class-map containing Java methods and fields for given CLASS.
+
+CLASSPATH : The classpath where CLASS can be found in."
   (let* (methods-and-fields)
     (with-temp-buffer
       (shell-command (concat "javap -cp '" classpath "' -public '" class "'") t)
@@ -480,6 +488,7 @@ for completion, and messaging was excessive in that case."
     (anakondo--make-class-map class methods-and-fields)))
 
 (defun anakondo--get-java-boot-classpath-list ()
+  "Return the Java boot classpath as a list."
   (let* ((boot-classpath (with-temp-buffer
                            (shell-command "java -XshowSettings:properties -version" t)
                            (goto-char (point-min))
@@ -501,6 +510,11 @@ for completion, and messaging was excessive in that case."
     boot-classpath))
 
 (defun anakondo--get-java-analysis-classpath (as)
+  "Return classpath that contain both project classpath and boot classpath.
+
+AS : can be 'list if you want classpath returned as a list
+     or 'cp if you want classpath returned as a java style
+     colon separated string classpath."
   (let* ((project-path (anakondo--get-project-path))
          (project-classpaths-list (split-string project-path ":" nil "[[:blank:]\n]*"))
          (java-boot-classpath-list (anakondo--get-java-boot-classpath-list))
@@ -510,7 +524,7 @@ for completion, and messaging was excessive in that case."
       ('cp (string-join analysis-classpath-list ":")))))
 
 (defun anakondo--java-projectile-analyse-sync (java-classes-cache)
-  "Analyze synchronously the project for all Java classes and their methods and fields.
+  "Analyze project for all Java classes and their methods and fields.
 
 Updates JAVA-CLASSES-CACHE with the result."
   (let* ((analysis-classpath-list (anakondo--get-java-analysis-classpath 'list))
@@ -557,7 +571,7 @@ How it works:
          ;; Fix clj-kondo issue: https://github.com/borkdude/clj-kondo/issues/866
          ;; We need to send to clj-kondo the buffer with prefix that doesn't end in forward slash
          (prefix-end-in-forward-slash? (when (and (char-before) (= (char-before) ?/))
-                                         (delete-backward-char 1)
+                                         (delete-char -1)
                                          t))
          (curr-ns (anakondo--clj-kondo-buffer-analyse-sync var-def-cache ns-def-cache ns-usage-cache)))
     ;; Restore deleted forward-slash
@@ -591,15 +605,18 @@ How it works:
       (anakondo--safe-hash-table-values (gethash curr-ns ns-usage-cache))))))
 
 (defun anakondo--get-local-completion-candidates (prefix prefix-start)
-  "Return a local candidate list compatible with completion-at-point for current symbol at point.
+  "Return a local candidate list for current symbol at point.
 
-Does not use clj-kondo, will perform a heuristic search for locals on best effort.
+Does not use clj-kondo, will perform a heuristic search for locals on
+best effort.
 
 Heuristic:
-  Uses dabbrev to find all symbols between the top level form up to prefix-start.
+  Uses dabbrev to find all symbols between the top level form up to
+  prefix-start.
 
 PREFIX : string for which to find all candidates that can complete it.
-PREFIX-START : start point of PREFIX, candidates are found up to PREFIX-START."
+PREFIX-START : start point of PREFIX, candidates are found up to
+               PREFIX-START."
   (let* ((all-expansions nil)
          expansion
          (syntax (syntax-ppss))
@@ -615,6 +632,11 @@ PREFIX-START : start point of PREFIX, candidates are found up to PREFIX-START."
     all-expansions))
 
 (defun anakondo--get-java-completion-candidates (prefix)
+  "Return the java completion candidates at point for given PREFIX.
+
+PREFIX : Used to figure out when we should complete java classes
+         versus completing java methods and fields by checking
+         if prefix ends in a forward slash or not."
   (let* ((java-classes-cache (anakondo--get-projectile-java-classes-cache))
          (class-to-complete (when (string-match "^\\(?1:.*\\)/.*$" prefix)
                               (match-string 1 prefix))))
@@ -674,13 +696,18 @@ Return a `completion-at-point' list for use with
                     (anakondo--get-local-completion-candidates prefix start)))
             (let* ((candidates (append
                                 (anakondo--get-clj-kondo-completion-candidates)
-                                (anakondo--get-java-completion-candidates prefix))))
+                                (unless (equal (anakondo--get-buffer-lang) "cljs")
+                                  (anakondo--get-java-completion-candidates prefix)))))
               (setq-local anakondo--completion-candidates-cache (cons start candidates))
               (append
                candidates
                (anakondo--get-local-completion-candidates prefix start))))))))))
 
 (defun anakondo--projectile-analyse-sync (var-def-cache ns-def-cache ns-usage-cache java-classes-cache)
+  "Analyze projectile project, updating caches with analysis result.
+
+Caches which will be updated are VAR-DEF-CACHE, NS-DEF-CACHE, NS-USAGE-CACHE,
+JAVA-CLASSES-CACHE."
   (message "Analysing project for completion...")
   (anakondo--clj-kondo-projectile-analyse-sync var-def-cache ns-def-cache ns-usage-cache)
   (anakondo--java-projectile-analyse-sync java-classes-cache)
