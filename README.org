@@ -152,6 +152,12 @@ This also goes if you turn on/off the modes manually, except in that case, order
 :TOC:      :depth 0
 :END:
 
+
+** 0.2.1
+
+Fixes
++ Added missing requires which caused byte compilation errors like not finding concatenate
+
 ** 0.2
 
 Additions

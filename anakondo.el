@@ -4,7 +4,7 @@
 
 ;; Author: Didier A. <didibus@users.noreply.github.com>
 ;; URL: https://github.com/didibus/anakondo
-;; Version: 0.2
+;; Version: 0.2.1
 ;; Package-Requires: ((emacs "26.3") (projectile "2.1.0"))
 ;; Keywords: clojure, clojurescript, cljc, clj-kondo, completion, languages, tools
 
@@ -41,6 +41,7 @@
 (require 'projectile)
 (eval-when-compile (require 'subr-x))
 (require 'dabbrev)
+(require 'cl-lib)
 
 ;;;; Customization
 
@@ -518,8 +519,8 @@ AS : can be 'list if you want classpath returned as a list
   (let* ((project-path (anakondo--get-project-path))
          (project-classpaths-list (split-string project-path ":" nil "[[:blank:]\n]*"))
          (java-boot-classpath-list (anakondo--get-java-boot-classpath-list))
-         (analysis-classpath-list (concatenate 'list project-classpaths-list java-boot-classpath-list)))
-    (case as
+         (analysis-classpath-list (cl-concatenate 'list project-classpaths-list java-boot-classpath-list)))
+    (cl-case as
       ('list analysis-classpath-list)
       ('cp (string-join analysis-classpath-list ":")))))
 
