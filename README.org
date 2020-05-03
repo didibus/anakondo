@@ -11,7 +11,7 @@ Current Features:
 + It gives you contextual auto-completion using completion-at-point, which works without a REPL connected, since it relies on clj-kondo's static source analysis. It will list out all available Vars, Ns and Aliases in a given buffer.
 + It can also perform locals completion, using an Emacs implemented heuristic completion based on dabbrev that works really well in practice and can handle unbalanced code.
 + It can also complete Java classes and their static methods and fields. It does so by relying on jar and javap JDK command line binaries.
-+ It supports the notion of projects, using projectile and Clojure's tools.deps. This means it'll pick up the buffer's current project root using projectile, and it will use Clojure's tools.deps to get the project's classpath. If it can't find either, it'll only auto-complete within the buffer, it won't be able to show candidates from the required dependencies.
++ It supports the notion of projects, using projectile or clojure-mode and Clojure's tools.deps. This means it'll pick up the buffer's current project root using projectile or clojure-mode, and it will use Clojure's tools.deps to get the project's classpath. If it can't find either, it'll only auto-complete within the buffer, it won't be able to show candidates from the required dependencies.
 
 * Screenshots
 
@@ -136,7 +136,7 @@ This also goes if you turn on/off the modes manually, except in that case, order
 
 ** Tips
 
-+ When you first turn on the minor mode, it will do an initial analysis of the full projectile project associated with your buffer with the classpath as defined by =tools.deps=. This can take a few seconds. This will happen for every projectile project you turn on the mode in a buffer for, but won't happen again when turning on the mode in another buffer in the same projectile project.
++ When you first turn on the minor mode, it will do an initial analysis of the full project associated with your buffer with the classpath as defined by =tools.deps=. This can take a few seconds. This will happen for every project you turn on the mode in a buffer for, but won't happen again when turning on the mode in another buffer in the same project.
 + If you change your =deps.edn=, or feel the completion is looking out of sync, you can force refresh the cache of the project analysis by running: =M-x anakondo-refresh-project-cache= command.
 + If dependency completion isn't working, remember that =anakondo= only supports =tools.deps= for now, if you don't have a =deps.edn= for your project, it will pick up your global =deps.edn= instead, it won't use your lein =project.clj= or boot =build.boot= dependencies.
 + If you've disabled cider-mode, and somehow anakondo completion stopped working, this is because of a known bug in cider-mode, which removes all configured completion for the buffer, not just its own, I am trying to get this fixed in cider as well.
@@ -155,8 +155,12 @@ This also goes if you turn on/off the modes manually, except in that case, order
 
 ** 0.2.1
 
+Changes
++ Logic to identify the Clojure project enhanced to try projectile first, clojure-mode second, and finally resort to the buffer's default-directory otherwise.
+
 Fixes
 + Added missing requires which caused byte compilation errors like not finding concatenate
++ Fixed projectile constantly asking for project when buffer not in a projectile project
 
 ** 0.2
 
@@ -243,8 +247,9 @@ Planned Features
 This package would not have been possible without the following packages:
 + [[https://github.com/borkdude/clj-kondo][clj-kondo]] : which does all the heavy lifting
 + [[https://github.com/bbatsov/projectile][projectile]] : which gives Emacs a common notion of projects
++ [[https://github.com/clojure-emacs/clojure-mode][clojure-mode]] : which gives Emacs a notion of Clojure projects
 + [[https://github.com/clojure/tools.deps.alpha][tools.deps]] : which lets me find the classpath effortlessly
-+ [[https://github.com/ryancrum/json.el][json :]] which lets me parse clj-kondo's analysis file inside Emacs
++ [[https://github.com/ryancrum/json.el][json]] : which lets me parse clj-kondo's analysis file inside Emacs
 
 Thanks to all of them and their author/contributors.
 

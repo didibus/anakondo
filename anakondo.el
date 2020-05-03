@@ -5,7 +5,7 @@
 ;; Author: Didier A. <didibus@users.noreply.github.com>
 ;; URL: https://github.com/didibus/anakondo
 ;; Version: 0.2.1
-;; Package-Requires: ((emacs "26.3") (projectile "2.1.0"))
+;; Package-Requires: ((emacs "26.3") (projectile "2.1.0") (clojure-mode "5.11.0"))
 ;; Keywords: clojure, clojurescript, cljc, clj-kondo, completion, languages, tools
 
 ;; This file is not part of GNU Emacs.
@@ -42,6 +42,7 @@
 (eval-when-compile (require 'subr-x))
 (require 'dabbrev)
 (require 'cl-lib)
+(require 'clojure-mode)
 
 ;;;; Customization
 
@@ -191,43 +192,49 @@ and the completion candidates for it at cdr for buffer.")
 
 ;;;; Macros
 
-(defmacro anakondo--with-projectile-root (&rest body)
-  "Invoke BODY with `root' bound to the projectile root.
+(defmacro anakondo--with-project-root (&rest body)
+  "Invoke BODY with `root' bound to the project root.
+
+We try to find the project root by:
+1. Trying to query `clojure-mode' for it.
+2. Trying to query projectile for it.
+3. Defaulting to the `default-directory' of the buffer otherwise.
 
 Anaphoric macro, binds `root' implicitly."
-  `(projectile-with-default-dir (projectile-ensure-project (projectile-project-root))
-     (let* ((root default-directory))
-       ,@body)))
+  `(let* ((root (or (clojure-project-dir)
+                    (projectile-project-root)
+                    default-directory)))
+     ,@body))
 
 ;;;; Functions
 
-(defun anakondo--get-projectile-cache (root)
+(defun anakondo--get-project-cache (root)
   "Return clj-kondo analysis cache for given project ROOT."
   (gethash root anakondo--cache))
 
-(defun anakondo--set-projectile-cache (root root-cache)
+(defun anakondo--set-project-cache (root root-cache)
   "Set given clj-kondo analysis ROOT-CACHE for given project ROOT."
   (puthash root root-cache anakondo--cache))
 
-(defun anakondo--get-projectile-var-def-cache ()
-  "Return cached var-definitions for current projectile project."
-  (anakondo--with-projectile-root
-   (gethash :var-def-cache (anakondo--get-projectile-cache root))))
+(defun anakondo--get-project-var-def-cache ()
+  "Return cached var-definitions for current project."
+  (anakondo--with-project-root
+   (gethash :var-def-cache (anakondo--get-project-cache root))))
 
-(defun anakondo--get-projectile-ns-def-cache ()
-  "Return cached ns-definitions for current projectile project."
-  (anakondo--with-projectile-root
-   (gethash :ns-def-cache (anakondo--get-projectile-cache root))))
+(defun anakondo--get-project-ns-def-cache ()
+  "Return cached ns-definitions for current project."
+  (anakondo--with-project-root
+   (gethash :ns-def-cache (anakondo--get-project-cache root))))
 
-(defun anakondo--get-projectile-ns-usage-cache ()
-  "Return cached ns-usages for current projectile project."
-  (anakondo--with-projectile-root
-   (gethash :ns-usage-cache (anakondo--get-projectile-cache root))))
+(defun anakondo--get-project-ns-usage-cache ()
+  "Return cached ns-usages for current project."
+  (anakondo--with-project-root
+   (gethash :ns-usage-cache (anakondo--get-project-cache root))))
 
-(defun anakondo--get-projectile-java-classes-cache ()
-  "Return cached java-classes for current projectile project."
-  (anakondo--with-projectile-root
-   (gethash :java-classes-cache (anakondo--get-projectile-cache root))))
+(defun anakondo--get-project-java-classes-cache ()
+  "Return cached java-classes for current project."
+  (anakondo--with-project-root
+   (gethash :java-classes-cache (anakondo--get-project-cache root))))
 
 (defun anakondo--completion-symbol-bounds ()
   "Return bounds of symbol at point which needs completion.
@@ -308,7 +315,7 @@ be derived from the file extension this option will be used."
         (kill-buffer buffer)))))
 
 (defun anakondo--get-project-path ()
-  "Return the path to `--lint' for clj-kondo in current projectile project.
+  "Return the path to `--lint' for clj-kondo in current project.
 
 It uses Clojure's `tools.deps' to get the project's classpath."
   ;; TODO: add support for lein, boot, and default to directory otherwise
@@ -390,12 +397,12 @@ INVALIDATION-NS : optional, can be a keyword of the namespace to invalidate
    ns-usages
    ns-usage-cache-table))
 
-(defun anakondo--clj-kondo-projectile-analyse-sync (var-def-cache-table ns-def-cache-table ns-usage-cache-table)
+(defun anakondo--clj-kondo-project-analyse-sync (var-def-cache-table ns-def-cache-table ns-usage-cache-table)
   "Analyze project synchronously using clj-kondo.
 
 Analyze synchronously the current project and upsert the analysis result
 into the given VAR-DEF-CACHE-TABLE, NS-DEF-CACHE-TABLE and NS-USAGE-CACHE-TABLE."
-  (anakondo--with-projectile-root
+  (anakondo--with-project-root
    (let* ((kondo-analyses (anakondo--clj-kondo-analyse-sync (anakondo--get-project-path) (anakondo--get-buffer-lang)))
           (var-defs (gethash :var-definitions kondo-analyses))
           (ns-defs (gethash :namespace-definitions kondo-analyses))
@@ -524,7 +531,7 @@ AS : can be 'list if you want classpath returned as a list
       ('list analysis-classpath-list)
       ('cp (string-join analysis-classpath-list ":")))))
 
-(defun anakondo--java-projectile-analyse-sync (java-classes-cache)
+(defun anakondo--java-project-analyse-sync (java-classes-cache)
   "Analyze project for all Java classes and their methods and fields.
 
 Updates JAVA-CLASSES-CACHE with the result."
@@ -566,9 +573,9 @@ How it works:
 5. Does not support refer yet.
 6. Does not support keywords yet.
 7. Does not support locals yet."
-  (let* ((var-def-cache (anakondo--get-projectile-var-def-cache))
-         (ns-def-cache (anakondo--get-projectile-ns-def-cache))
-         (ns-usage-cache (anakondo--get-projectile-ns-usage-cache))
+  (let* ((var-def-cache (anakondo--get-project-var-def-cache))
+         (ns-def-cache (anakondo--get-project-ns-def-cache))
+         (ns-usage-cache (anakondo--get-project-ns-usage-cache))
          ;; Fix clj-kondo issue: https://github.com/borkdude/clj-kondo/issues/866
          ;; We need to send to clj-kondo the buffer with prefix that doesn't end in forward slash
          (prefix-end-in-forward-slash? (when (and (char-before) (= (char-before) ?/))
@@ -638,7 +645,7 @@ PREFIX-START : start point of PREFIX, candidates are found up to
 PREFIX : Used to figure out when we should complete java classes
          versus completing java methods and fields by checking
          if prefix ends in a forward slash or not."
-  (let* ((java-classes-cache (anakondo--get-projectile-java-classes-cache))
+  (let* ((java-classes-cache (anakondo--get-project-java-classes-cache))
          (class-to-complete (when (string-match "^\\(?1:.*\\)/.*$" prefix)
                               (match-string 1 prefix))))
     (append
@@ -704,17 +711,17 @@ Return a `completion-at-point' list for use with
                candidates
                (anakondo--get-local-completion-candidates prefix start))))))))))
 
-(defun anakondo--projectile-analyse-sync (var-def-cache ns-def-cache ns-usage-cache java-classes-cache)
-  "Analyze projectile project, updating caches with analysis result.
+(defun anakondo--project-analyse-sync (var-def-cache ns-def-cache ns-usage-cache java-classes-cache)
+  "Analyze project, updating caches with analysis result.
 
 Caches which will be updated are VAR-DEF-CACHE, NS-DEF-CACHE, NS-USAGE-CACHE,
 JAVA-CLASSES-CACHE."
   (message "Analysing project for completion...")
-  (anakondo--clj-kondo-projectile-analyse-sync var-def-cache ns-def-cache ns-usage-cache)
-  (anakondo--java-projectile-analyse-sync java-classes-cache)
+  (anakondo--clj-kondo-project-analyse-sync var-def-cache ns-def-cache ns-usage-cache)
+  (anakondo--java-project-analyse-sync java-classes-cache)
   (message "Analysing project for completion...done"))
 
-(defun anakondo--init-projectile-cache (root)
+(defun anakondo--init-project-cache (root)
   "Initialize analysis caches for project ROOT.
 
 Initialize clj-kondo analysis cache of caches for given ROOT, if it isn't
@@ -730,7 +737,7 @@ Cache looks like:
        :java-classes {class {methods/fields {signatures}}}}}"
   (unless anakondo--cache
     (setq anakondo--cache (make-hash-table :test 'equal)))
-  (let* ((root-cache (anakondo--get-projectile-cache root)))
+  (let* ((root-cache (anakondo--get-project-cache root)))
     (if (not root-cache)
         (let* ((root-cache (make-hash-table))
                (var-def-cache (make-hash-table))
@@ -741,17 +748,17 @@ Cache looks like:
           (puthash :ns-def-cache ns-def-cache root-cache)
           (puthash :ns-usage-cache ns-usage-cache root-cache)
           (puthash :java-classes-cache java-classes-cache root-cache)
-          (anakondo--set-projectile-cache root root-cache)
-          (anakondo--projectile-analyse-sync var-def-cache ns-def-cache ns-usage-cache java-classes-cache))
-      (let* ((var-def-cache (anakondo--get-projectile-var-def-cache))
-             (ns-def-cache (anakondo--get-projectile-ns-def-cache))
-             (ns-usage-cache (anakondo--get-projectile-ns-usage-cache)))
+          (anakondo--set-project-cache root root-cache)
+          (anakondo--project-analyse-sync var-def-cache ns-def-cache ns-usage-cache java-classes-cache))
+      (let* ((var-def-cache (anakondo--get-project-var-def-cache))
+             (ns-def-cache (anakondo--get-project-ns-def-cache))
+             (ns-usage-cache (anakondo--get-project-ns-usage-cache)))
         (anakondo--clj-kondo-buffer-analyse-sync var-def-cache ns-def-cache ns-usage-cache)))))
 
-(defun anakondo--delete-projectile-cache (root)
+(defun anakondo--delete-project-cache (root)
   "Delete the cache for the given ROOT project, releasing its memory."
   (when anakondo--cache
-    (when (anakondo--get-projectile-cache root)
+    (when (anakondo--get-project-cache root)
       (remhash root anakondo--cache))))
 
 ;;;;; Commands
@@ -782,25 +789,25 @@ to save your buffers first.
 Runs synchronously, and might take a few seconds for big projects."
   (interactive)
   (anakondo--minor-mode-guard)
-  (let* ((var-def-cache (anakondo--get-projectile-var-def-cache))
-         (ns-def-cache (anakondo--get-projectile-ns-def-cache))
-         (ns-usage-cache (anakondo--get-projectile-ns-usage-cache))
-         (java-classes-cache (anakondo--get-projectile-java-classes-cache)))
-    (anakondo--projectile-analyse-sync var-def-cache ns-def-cache ns-usage-cache java-classes-cache)))
+  (let* ((var-def-cache (anakondo--get-project-var-def-cache))
+         (ns-def-cache (anakondo--get-project-ns-def-cache))
+         (ns-usage-cache (anakondo--get-project-ns-usage-cache))
+         (java-classes-cache (anakondo--get-project-java-classes-cache)))
+    (anakondo--project-analyse-sync var-def-cache ns-def-cache ns-usage-cache java-classes-cache)))
 
 ;;;;; Support
 
 (defun anakondo--minor-mode-enter ()
   "Setup command `anakondo-minor-mode' in current buffer."
   (add-hook 'completion-at-point-functions #'anakondo-completion-at-point nil t)
-  (anakondo--with-projectile-root
-   (anakondo--init-projectile-cache root)))
+  (anakondo--with-project-root
+   (anakondo--init-project-cache root)))
 
 (defun anakondo--minor-mode-exit ()
   "Tear down command `anakondo-minor-mode' in current buffer."
   (remove-hook 'completion-at-point-functions #'anakondo-completion-at-point t)
-  (anakondo--with-projectile-root
-   (anakondo--delete-projectile-cache root))
+  (anakondo--with-project-root
+   (anakondo--delete-project-cache root))
   (setq-local anakondo--completion-candidates-cache nil))
 
 (defun anakondo--minor-mode-guard ()
