@@ -302,12 +302,12 @@ Return nil if Clojure not detected."
 
 Is synchronous, and will block Emacs until done.
 
-PATH is the value passed to clj-kondo's `--lint' option. It can be a path to a
-file, directory or classpath. In the case of a directory or classpath,
-only .clj, .cljs and .cljc will be processed. Use `-' as path for having it
+PATH is the value passed to clj-kondo's `--lint' option.  It can be a path to a
+file, directory or classpath.  In the case of a directory or classpath,
+only .clj, .cljs and .cljc will be processed.  Use `-' as path for having it
 analyze current buffer.
 
-DEFAULT-LANG is the value passed to clj-kondo's `--lang' option. If lang cannot
+DEFAULT-LANG is the value passed to clj-kondo's `--lang' option.  If lang cannot
 be derived from the file extension this option will be used."
   (let* ((buffer "*anakondo*")
          (analysis-key :analysis)
@@ -349,7 +349,7 @@ Update or insert into VAR-DEF-CACHE-TABLE the clj-kondo var-definitions from
 VAR-DEFS.
 
 INVALIDATION-NS : optional, can be a keyword of the namespace to invalidate
-                  before updating. This means it'll replace the cached
+                  before updating.  This means it'll replace the cached
                   var-definitions for that namespace instead of merging it in.
                   This is useful when we want to remove var-definitions
                   no longer present in the source code from the cache."
@@ -387,14 +387,15 @@ NS-DEFS."
 (defun anakondo--upsert-ns-usage-cache (ns-usage-cache-table ns-usages &optional invalidation-ns)
   "Update or insert ns-usages into cache.
 
-Update or insert into NS-USAGE-CACHE-TABLE the clj-kondo ns-usages from
-NS-USAGES.
+Update or insert into NS-USAGE-CACHE-TABLE the clj-kondo
+ns-usages from NS-USAGES.
 
-INVALIDATION-NS : optional, can be a keyword of the namespace to invalidate
-                  before updating. This means it'll replace the cached ns-usages
-                  for that namespace instead of merging it in. This is useful
-                  when we want to remove ns-usages no longer present in the
-                  source code from the cache."
+INVALIDATION-NS : optional, can be a keyword of the namespace to
+                  invalidate before updating.  This means it'll
+                  replace the cached ns-usages for that namespace
+                  instead of merging it in.  This is useful when
+                  we want to remove ns-usages no longer present
+                  in the source code from the cache."
   (when invalidation-ns
     (remhash invalidation-ns ns-usage-cache-table))
   (seq-reduce
@@ -435,7 +436,7 @@ Analyze synchronously the current buffer and upsert the analysis result into
 the given VAR-DEF-CACHE-TABLE, NS-DEF-CACHE-TABLE and NS-USAGE-CACHE-TABLE.
 
 It is synchronous and will block Emacs, but should be fast enough we don't
-bother messaging the user. Also, this is called by `completion-at-point', which
+bother messaging the user.  Also, this is called by `completion-at-point', which
 for command `company-mode', means it is called on every keystroke that qualifies
 for completion, and messaging was excessive in that case."
   (let* ((kondo-analyses (anakondo--clj-kondo-analyse-sync "-" (anakondo--get-buffer-lang)))
@@ -584,7 +585,7 @@ How it works:
    namespace and the vars from all namespaces it requires, as well as the list
    of all available namespaces and join them all into out candidates list.
 4. It'll properly prefix the alias or the namespace qualifier for Vars from the
-   required namespaces. If there is an alias, it uses the alias, else the
+   required namespaces.  If there is an alias, it uses the alias, else the
    namespace qualifier.
 5. Does not support refer yet.
 6. Does not support keywords yet.
@@ -799,7 +800,7 @@ the mode if ARG is omitted or nil, and toggle it if ARG is ‘toggle’."
   "Refresh the anakondo project analysis cache.
 
 Run this command if you feel anakondo is out-of-sync with your project source.
-Will not pick up changes to source which have not been saved. So you might want
+Will not pick up changes to source which have not been saved.  So you might want
 to save your buffers first.
 
 Runs synchronously, and might take a few seconds for big projects."
