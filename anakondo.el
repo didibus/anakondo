@@ -5,7 +5,7 @@
 ;; Author: Didier A. <didibus@users.noreply.github.com>
 ;; URL: https://github.com/didibus/anakondo
 ;; Version: 0.2.1
-;; Package-Requires: ((emacs "26.3") (projectile "2.1.0") (clojure-mode "5.11.0"))
+;; Package-Requires: ((emacs "26.3"))
 ;; Keywords: clojure, clojurescript, cljc, clj-kondo, completion, languages, tools
 
 ;; This file is not part of GNU Emacs.
@@ -38,11 +38,16 @@
 ;;;; Requirements
 
 (require 'json)
-(require 'projectile)
 (eval-when-compile (require 'subr-x))
 (require 'dabbrev)
 (require 'cl-lib)
-(require 'clojure-mode)
+
+;;;; Declares
+
+(declare-function projectile-project-root "ext:projectile")
+(declare-function project-root "ext:project" (project) t)
+(declare-function project-roots "ext:project" (project) t)
+(declare-function clojure-project-dir "ext:clojure-mode")
 
 ;;;; Customization
 
@@ -197,16 +202,27 @@ and the completion candidates for it at cdr for buffer.")
 
 We try to find the project root by:
 1. Trying to query `clojure-mode' for it.
-2. Trying to query projectile for it.
-3. Defaulting to the `default-directory' of the buffer otherwise.
+2. Trying to query `project' for it.
+3. Trying to query projectile for it.
+4. Defaulting to the `default-directory' of the buffer otherwise.
 
 Anaphoric macro, binds `root' implicitly."
-  `(let* ((root (or (clojure-project-dir)
-                    (projectile-project-root)
+  `(let* ((root (or (and (featurep 'clojure-mode) (clojure-project-dir))
+                    (anakondo--project-get-project-root)
+                    (and (featurep 'projectile) (projectile-project-root))
                     default-directory)))
      ,@body))
 
 ;;;; Functions
+
+(defun anakondo--project-get-project-root ()
+  "Wrapper around `project.el' for getting project root."
+  (when-let ((project (and (featurep 'project)
+                           (project-current))))
+    (if (fboundp #'project-root)
+        (project-root project)
+      (car (with-no-warnings
+             (project-roots project))))))
 
 (defun anakondo--get-project-cache (root)
   "Return clj-kondo analysis cache for given project ROOT."
