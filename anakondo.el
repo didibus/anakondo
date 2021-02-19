@@ -208,8 +208,8 @@ We try to find the project root by:
 
 Anaphoric macro, binds `root' implicitly."
   `(let* ((root (or (and (featurep 'clojure-mode) (clojure-project-dir))
-                    (anakondo--project-get-project-root)
                     (and (featurep 'projectile) (projectile-project-root))
+                    (anakondo--project-get-project-root)
                     default-directory)))
      ,@body))
 
@@ -219,6 +219,12 @@ Anaphoric macro, binds `root' implicitly."
   "Wrapper around `project.el' for getting project root."
   (when-let ((project (and (featurep 'project)
                            (project-current))))
+    ;; `project-root' function can be missing, as it was added
+    ;; recently, and `project-roots' function was deprecated.  The
+    ;; main difference is that `project-root' returns single project
+    ;; root, while `project-roots' always returns a list but we only
+    ;; interested in first candidate.  More info can be found in
+    ;; commit `5044c190' at Emacs source code repository.
     (if (fboundp #'project-root)
         (project-root project)
       (car (with-no-warnings
