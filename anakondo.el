@@ -202,8 +202,8 @@ and the completion candidates for it at cdr for buffer.")
 
 We try to find the project root by:
 1. Trying to query `clojure-mode' for it.
-2. Trying to query `project' for it.
-3. Trying to query projectile for it.
+2. Trying to query `projectile' for it.
+3. Trying to query `project' for it.
 4. Defaulting to the `default-directory' of the buffer otherwise.
 
 Anaphoric macro, binds `root' implicitly."
