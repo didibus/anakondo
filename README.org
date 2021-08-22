@@ -152,6 +152,21 @@ This also goes if you turn on/off the modes manually, except in that case, order
 :TOC:      :depth 0
 :END:
 
+** 0.2.2
+
+Additions
++ Anakondo now validates you have all the non Emacs dependencies available when activating, and if anything is missing, a message tells you what with a link to how to install it.
+
+Changes
++ Anakondo no longer depends on projectile and clojure-mode, and will fallback on project.el if those are missing, and default-directory of the buffer if project.el is also missing
+
+Fixes
++ Fixed bug where anakondo-minor-mode errors when activated if clj-kondo is missing
+
+Internal
++ Added anakondo--project-get-project-root which tries to get the project root by using project.el
++ Added anakondo--minor-mode-valid-dependenciesp which tries to asses if all non emacs dependencies are met for Anakondo to work
++ Added anakondo--message and anakondo--error to prefix all message and error with anakondo so users know where it comes from
 
 ** 0.2.1
 

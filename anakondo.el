@@ -4,7 +4,7 @@
 
 ;; Author: Didier A. <didibus@users.noreply.github.com>
 ;; URL: https://github.com/didibus/anakondo
-;; Version: 0.2.1
+;; Version: 0.2.2
 ;; Package-Requires: ((emacs "26.3"))
 ;; Keywords: clojure, clojurescript, cljc, clj-kondo, completion, languages, tools
 
@@ -739,10 +739,10 @@ Return a `completion-at-point' list for use with
 
 Caches which will be updated are VAR-DEF-CACHE, NS-DEF-CACHE, NS-USAGE-CACHE,
 JAVA-CLASSES-CACHE."
-  (message "Analysing project for completion...")
+  (anakondo--message "Analysing project for completion...")
   (anakondo--clj-kondo-project-analyse-sync var-def-cache ns-def-cache ns-usage-cache)
   (anakondo--java-project-analyse-sync java-classes-cache)
-  (message "Analysing project for completion...done"))
+  (anakondo--message "Analysing project for completion...done"))
 
 (defun anakondo--init-project-cache (root)
   "Initialize analysis caches for project ROOT.
@@ -820,11 +820,35 @@ Runs synchronously, and might take a few seconds for big projects."
 
 ;;;;; Support
 
+(defun anakondo--message (msg)
+  (message (concat "anakondo: " msg)))
+
+(defun anakondo--error (msg)
+  (error (concat "anakondo: " msg)))
+
+(defun anakondo--minor-mode-valid-dependenciesp ()
+  "Validates that we have all the dependencies needed for anakondo to work available,
+   otherwise we won't turn on the minor-mode and will show a message to the user."
+  (let ((clj-kondo (not (executable-find "clj-kondo")))
+        (clojure-cli (not (executable-find "clojure")))
+        (javap (not (executable-find "javap"))))
+    (when clj-kondo
+      (anakondo--message "clj-kondo executable not found, make sure you've installed clj-kondo and have it on Emacs's exec-path. Install instructions: https://github.com/borkdude/clj-kondo/blob/master/doc/install.md"))
+    (when clojure-cli
+      (anakondo--message "clojure CLI executable not found, make sure you've installed the Clojure CLI tools and have it on Emacs's exec-path. Install instructions: https://clojure.org/guides/getting_started#_clojure_installer_and_cli_tools"))
+    (when javap
+      (anakondo--message "javap executable not found, make sure you've installed a Java JDK and have its `/bin` folder on Emacs's exec-path. Install instructions: https://www.rubberducking.com/#getting-a-working-jvmjdk-installed-on-your-box"))
+    (every (lambda (e) (not e)) (list clj-kondo clojure-cli javap))))
+
 (defun anakondo--minor-mode-enter ()
   "Setup command `anakondo-minor-mode' in current buffer."
-  (add-hook 'completion-at-point-functions #'anakondo-completion-at-point nil t)
-  (anakondo--with-project-root
-   (anakondo--init-project-cache root)))
+  (if (anakondo--minor-mode-valid-dependenciesp)
+      (progn
+        (add-hook 'completion-at-point-functions #'anakondo-completion-at-point nil t)
+        (anakondo--with-project-root
+         (anakondo--init-project-cache root)))
+    (progn (anakondo--message "Didn't activate anakondo-minor-mode, because not all dependencies for it were met.")
+           (anakondo-minor-mode -1))))
 
 (defun anakondo--minor-mode-exit ()
   "Tear down command `anakondo-minor-mode' in current buffer."
@@ -839,7 +863,7 @@ Runs synchronously, and might take a few seconds for big projects."
 Signal an error when command `anakondo-minor-mode' is not on in current
 buffer."
   (unless anakondo-minor-mode
-    (error "Anakondo minor mode not on in current buffer")))
+    (anakondo--error "Anakondo minor mode not on in current buffer")))
 
 ;;;; Footer
 
